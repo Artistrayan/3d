@@ -18,13 +18,17 @@ import com.example.engine.MeshModifiers
 import com.example.engine.PrimitiveGenerator
 import com.example.engine.PrimitiveType3D
 import com.example.engine.ReadyModelPreset
+import com.example.engine.TextureEngine
 import com.example.model.AxisConstraint
+import com.example.model.CustomPaintStroke
 import com.example.model.ExportFormat3D
 import com.example.model.MeshEngineeringStats
 import com.example.model.PbrMaterial
 import com.example.model.SceneNode3D
 import com.example.model.StudioLightingPreset
+import com.example.model.TextureType
 import com.example.model.TransformToolMode
+import com.example.model.UvMappingMode
 import com.example.model.Vec3
 import com.example.model.ViewportShadingMode
 import java.io.File
@@ -44,12 +48,12 @@ enum class StudioTab(val titleFa: String, val titleEn: String) {
     VIEWPORT("میز کار 3D", "3D Studio"),
     LIBRARY("مدل‌های آماده", "Asset Library"),
     SCULPT_MESH("ابزار و مش", "Mesh & Sculpt"),
-    MATERIAL_LIGHT("متریال و نور", "PBR & Light"),
+    MATERIAL_LIGHT("تکسچر و متریال", "Texture & PBR"),
     EXPORT_PROJECTS("خروجی GLB/STL", "Export & Files")
 }
 
 data class StudioUiState(
-    val projectName: String = "Cyber_Mecha_Studio",
+    val projectName: String = "PolyForge_Model",
     val activeTab: StudioTab = StudioTab.VIEWPORT,
     val isPersian: Boolean = true,
     val nodes: List<SceneNode3D> = emptyList(),
@@ -68,7 +72,7 @@ data class StudioUiState(
     val autoTurntable: Boolean = false,
     val cameraYaw: Float = -32f,
     val cameraPitch: Float = 22f,
-    val cameraZoom: Float = 6.2f,
+    val cameraZoom: Float = 5.4f,
     val cameraPanX: Float = 0f,
     val cameraPanY: Float = 0f,
     val canUndo: Boolean = false,
@@ -105,13 +109,16 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
             initialValue = emptyList()
         )
 
-        // Load initial showcase 3D model (Cyber Guardian Mecha) and seed starter projects in Room
-        val initialNodes = PrimitiveGenerator.buildCyberMechaPreset()
+        // Start with a clean, single centered 3D Cube on the CAD grid (just like Blender/Shapr3D)
+        val starterCube = PrimitiveGenerator.createPrimitive(
+            type = PrimitiveType3D.CUBE,
+            position = Vec3(0f, 0f, 0f)
+        )
         applySceneNodes(
-            newNodes = initialNodes,
-            selectedId = initialNodes.firstOrNull()?.id,
+            newNodes = listOf(starterCube),
+            selectedId = starterCube.id,
             pushHistory = false,
-            newProjectName = "Cyber_Mecha_Bot"
+            newProjectName = "CAD_Cube_Model"
         )
         seedStarterProjectsIfNeeded()
     }
@@ -275,7 +282,7 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun setCameraPreset(yaw: Float, pitch: Float, zoom: Float = 6.0f, ortho: Boolean? = null) {
+    fun setCameraPreset(yaw: Float, pitch: Float, zoom: Float = 5.4f, ortho: Boolean? = null) {
         _uiState.update { state ->
             state.copy(
                 cameraYaw = yaw,
@@ -303,17 +310,29 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         applySceneNodes(next, pushHistory = false, statusMessage = "تکرار عملیات (Redo)")
     }
 
-    // Adding Primitives & Presets
-    fun addPrimitive(type: PrimitiveType3D) {
+    /**
+     * Replaces the workspace with a single clean primitive or appends if appendToScene == true.
+     */
+    fun addPrimitive(type: PrimitiveType3D, appendToScene: Boolean = false) {
         val current = _uiState.value.nodes
-        val offsetIndex = current.size % 5
-        val spawnPos = if (current.isEmpty()) Vec3(0f, 0f, 0f) else Vec3((offsetIndex - 2) * 0.35f, 0.2f, 0f)
-        val node = PrimitiveGenerator.createPrimitive(type, position = spawnPos)
-        applySceneNodes(
-            newNodes = current + node,
-            selectedId = node.id,
-            statusMessage = "${type.titleFa} به صحنه سه‌بعدی اضافه شد"
-        )
+        if (!appendToScene || current.isEmpty()) {
+            val node = PrimitiveGenerator.createPrimitive(type, position = Vec3(0f, 0f, 0f))
+            applySceneNodes(
+                newNodes = listOf(node),
+                selectedId = node.id,
+                newProjectName = type.name.lowercase(),
+                statusMessage = "مدل «${type.titleFa}» در مرکز میز کار قرار گرفت"
+            )
+        } else {
+            val offsetIndex = current.size % 5
+            val spawnPos = Vec3((offsetIndex - 2) * 1.35f, 0f, 0f)
+            val node = PrimitiveGenerator.createPrimitive(type, position = spawnPos)
+            applySceneNodes(
+                newNodes = current + node,
+                selectedId = node.id,
+                statusMessage = "«${type.titleFa}» به کنار مدل فعلی اضافه شد"
+            )
+        }
     }
 
     fun loadReadyModelPreset(preset: ReadyModelPreset, appendToScene: Boolean = false) {
@@ -323,18 +342,20 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
             newNodes = nextNodes,
             selectedId = generated.firstOrNull()?.id,
             newProjectName = preset.id,
-            statusMessage = "مدل آماده «${preset.titleFa}» بارگذاری شد"
+            statusMessage = "مدل یکپارچه «${preset.titleFa}» بارگذاری شد"
         )
         _uiState.update { it.copy(activeTab = StudioTab.VIEWPORT) }
     }
 
-    fun clearScene() {
-        val starterCube = PrimitiveGenerator.createPrimitive(PrimitiveType3D.CUBE)
+    /**
+     * Completely empties the CAD table so the user has a 100% blank grid.
+     */
+    fun clearWorkspaceToEmpty() {
         applySceneNodes(
-            newNodes = listOf(starterCube),
-            selectedId = starterCube.id,
-            newProjectName = "New_3D_Model",
-            statusMessage = "صحنه جدید ایجاد شد"
+            newNodes = emptyList(),
+            selectedId = null,
+            newProjectName = "Empty_Workspace",
+            statusMessage = "میز کار کاملاً خالی شد — یک شکل از نوار پایین یا کتابخانه انتخاب کنید"
         )
     }
 
@@ -352,12 +373,12 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
             id = "${sel.id}_copy_${(100..999).random()}",
             name = "${sel.name} Copy",
             nameFa = "${sel.nameFa} (کپی)",
-            position = sel.position + Vec3(0.45f, 0.15f, 0.35f)
+            position = sel.position + Vec3(1.2f, 0f, 0f)
         )
         applySceneNodes(
             newNodes = _uiState.value.nodes + copy,
             selectedId = copy.id,
-            statusMessage = "کپی از قطعه انتخاب‌شده ایجاد شد"
+            statusMessage = "کپی از مدل در کنار آن ایجاد شد"
         )
     }
 
@@ -367,7 +388,7 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         applySceneNodes(
             newNodes = remaining,
             selectedId = remaining.firstOrNull()?.id,
-            statusMessage = "قطعه حذف شد"
+            statusMessage = "مدل انتخابی از میز کار حذف شد"
         )
     }
 
@@ -527,7 +548,7 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         applySceneNodes(updated, selectedId = modified.id, statusMessage = message)
     }
 
-    // Material Operations
+    // Material & Texture Studio Operations
     fun updateSelectedMaterial(updater: (PbrMaterial) -> PbrMaterial) {
         val selId = _uiState.value.selectedNodeId ?: return
         val updated = _uiState.value.nodes.map { node ->
@@ -541,7 +562,87 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         val updated = _uiState.value.nodes.map { node ->
             if (applyToAll || node.id == selId) node.copy(material = preset) else node
         }
-        applySceneNodes(updated, statusMessage = "متریال «${preset.nameFa}» اعمال شد")
+        applySceneNodes(updated, statusMessage = "متریال و تکسچر «${preset.nameFa}» اعمال شد")
+    }
+
+    fun selectTextureType(type: TextureType) {
+        updateSelectedMaterial { mat ->
+            mat.copy(
+                textureType = type,
+                baseColorHex = if (type != TextureType.NONE && type != TextureType.CUSTOM_PAINT) type.defaultPrimaryHex else mat.baseColorHex,
+                textureSecondaryHex = if (type != TextureType.NONE) type.defaultSecondaryHex else mat.textureSecondaryHex
+            )
+        }
+    }
+
+    fun addPaintStrokeToSelected(stroke: CustomPaintStroke) {
+        updateSelectedMaterial { mat ->
+            val capped = if (mat.paintStrokes.size >= 180) mat.paintStrokes.drop(1) else mat.paintStrokes
+            mat.copy(paintStrokes = capped + stroke)
+        }
+    }
+
+    fun clearPaintStrokesOnSelected() {
+        updateSelectedMaterial { mat ->
+            mat.copy(paintStrokes = emptyList())
+        }
+    }
+
+    fun randomizeProceduralTexture() {
+        val types = TextureType.entries.filter { it != TextureType.NONE && it != TextureType.CUSTOM_PAINT }
+        val chosen = types.random()
+        val palette = listOf(
+            0xFF00E5FFL, 0xFF38BDF8L, 0xFFF59E0BL, 0xFF10B981L,
+            0xFFEF4444L, 0xFFA855F7L, 0xFFEC4899L, 0xFFF8FAFCL
+        )
+        val darks = listOf(0xFF090D16L, 0xFF1E293BL, 0xFF334155L, 0xFF451A03L, 0xFF064E3BL)
+        updateSelectedMaterial { mat ->
+            mat.copy(
+                textureType = chosen,
+                baseColorHex = palette.random(),
+                textureSecondaryHex = darks.random(),
+                textureScale = (2..8).random().toFloat(),
+                textureBlend = (70..100).random() / 100f
+            )
+        }
+        _uiState.update {
+            it.copy(statusBannerMessage = "تکسچر تصادفی «${chosen.titleFa}» ساخته و روی مدل اعمال شد")
+        }
+    }
+
+    fun shareCurrentTextureAsPng(context: Context) {
+        val mat = getSelectedNode()?.material ?: PbrMaterial()
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val pngBytes = TextureEngine.encodeTextureToPngBytes(mat, sizePx = 512)
+                val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+                val fileName = "${_uiState.value.projectName}_texture_512px.png"
+                val outFile = File(exportDir, fileName)
+                outFile.writeBytes(pngBytes)
+
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    outFile
+                )
+                withContext(Dispatchers.Main) {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "image/png"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_SUBJECT, fileName)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(
+                        Intent.createChooser(shareIntent, "ذخیره و اشتراک‌گذاری تکسچر PNG ($fileName)")
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(statusBannerMessage = "خطا در خروجی تکسچر PNG: ${err.localizedMessage}")
+                }
+            }
+        }
     }
 
     // Export & Import Operations
@@ -640,9 +741,9 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
                 withContext(Dispatchers.Main) {
                     if (importedNodes.isNotEmpty()) {
                         applySceneNodes(
-                            newNodes = _uiState.value.nodes + importedNodes,
+                            newNodes = importedNodes,
                             selectedId = importedNodes.first().id,
-                            statusMessage = "فایل سه‌بعدی «$displayName» با موفقیت وارد شد (${importedNodes.sumOf { it.faces.size }} مثلث)"
+                            statusMessage = "فایل سه‌بعدی «$displayName» در میز کار بارگذاری شد (${importedNodes.sumOf { it.faces.size }} مثلث)"
                         )
                         _uiState.update { it.copy(activeTab = StudioTab.VIEWPORT) }
                     } else {

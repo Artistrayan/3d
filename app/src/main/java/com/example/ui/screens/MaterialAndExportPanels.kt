@@ -1,8 +1,11 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,14 +27,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -50,11 +58,19 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,10 +78,14 @@ import com.example.data.ExportLogEntity
 import com.example.data.ProjectEntity
 import com.example.engine.ExportPayload
 import com.example.engine.PrimitiveGenerator
+import com.example.engine.TextureEngine
+import com.example.model.CustomPaintStroke
 import com.example.model.ExportFormat3D
 import com.example.model.PbrMaterial
 import com.example.model.SceneNode3D
 import com.example.model.StudioLightingPreset
+import com.example.model.TextureType
+import com.example.model.UvMappingMode
 import com.example.model.ViewportShadingMode
 import com.example.ui.theme.CyberCyan
 import com.example.ui.theme.JetBrainsMonoFontFamily
@@ -89,17 +109,25 @@ fun MaterialAndLightPanel(
     onSetLightingPreset: (StudioLightingPreset) -> Unit,
     onUpdateMaterial: ((PbrMaterial) -> PbrMaterial) -> Unit,
     onApplyPresetMaterial: (PbrMaterial, Boolean) -> Unit,
+    onSelectTextureType: (TextureType) -> Unit,
+    onAddPaintStroke: (CustomPaintStroke) -> Unit,
+    onClearPaintStrokes: () -> Unit,
+    onRandomizeTexture: () -> Unit,
+    onExportTexturePng: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val curatedMaterials = remember { PrimitiveGenerator.curatedMaterials }
     val currentMat = selectedNode?.material ?: PbrMaterial()
+
+    var brushColorHex by remember { mutableLongStateOf(0xFF00E5FFL) }
+    var brushRadiusUv by remember { mutableFloatStateOf(0.045f) }
 
     val quickSwatches = remember {
         listOf(
             0xFF00E5FFL, 0xFF38BDF8L, 0xFF3B82F6L, 0xFF818CF8L,
             0xFFA855F7L, 0xFFEC4899L, 0xFFEF4444L, 0xFFFB923CL,
             0xFFF59E0BL, 0xFFFACC15L, 0xFF10B981L, 0xFF2DD4BFL,
-            0xFFF8FAFCL, 0xFF94A3B8L, 0xFF475569L, 0xFF1E293BL
+            0xFFF8FAFCL, 0xFF94A3B8L, 0xFF334155L, 0xFF090D16L
         )
     }
 
@@ -110,55 +138,263 @@ fun MaterialAndLightPanel(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Lighting & Shading Mode Card
+        // 1. Dedicated Texture Creator Studio Card (استودیو ساخت تکسچر و نقاشی دوبعدی/سه‌بعدی)
         item {
             Card(
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = StudioSurfaceElevated),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.5.dp, CyberCyan.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                    .testTag("texture_creator_card")
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.LightMode, contentDescription = null, tint = SculptAmber)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (isPersian) "نورپردازی استودیو و حالت رندر (Studio Shader)" else "Viewport Shading & Studio Lighting",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = if (isPersian) "حالت نمایش مش در محیط سه‌بعدی:" else "Viewport Shading Mode:",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextSecondary
-                    )
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        ViewportShadingMode.entries.forEach { mode ->
-                            FilterChip(
-                                selected = shadingMode == mode,
-                                onClick = { onSetShadingMode(mode) },
-                                label = { Text(if (isPersian) mode.labelFa else mode.labelEn) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = CyberCyan.copy(alpha = 0.22f),
-                                    selectedLabelColor = CyberCyan
-                                ),
-                                modifier = Modifier.testTag("shading_mode_${mode.name.lowercase()}")
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(CyberCyan.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Brush, contentDescription = null, tint = CyberCyan)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (isPersian) "استودیو ساخت تکسچر (Texture Maker)" else "Procedural & 2D Paint Texture Studio",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isPersian)
+                                        "ساخت بافت پارامتریک + نقاشی مستقیم با انگشت روی مدل سه‌بعدی"
+                                    else
+                                        "Generate procedural patterns or paint directly onto the UV map",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = CyberCyan
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onRandomizeTexture,
+                            modifier = Modifier.testTag("randomize_texture_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "Randomize Texture",
+                                tint = SculptAmber
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Interactive 2D Texture UV Preview + Finger Paint Canvas
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        InteractiveTextureUvCanvas(
+                            material = currentMat,
+                            brushColorHex = brushColorHex,
+                            brushRadiusUv = brushRadiusUv,
+                            onAddStroke = onAddPaintStroke,
+                            modifier = Modifier
+                                .size(145.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .border(2.dp, CyberCyan, RoundedCornerShape(14.dp))
+                                .testTag("texture_uv_paint_canvas")
+                        )
+
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (isPersian)
+                                    "بوم زنده تکسچر (UV Map):\nروی مربع کنار بکشید تا مستقیماً روی مدل سه‌بعدی نقاشی شود!"
+                                else
+                                    "Live UV Canvas:\nDrag on the square to paint directly onto the 3D mesh!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+
+                            Button(
+                                onClick = onExportTexturePng,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = CyberCyan,
+                                    contentColor = Color(0xFF00242B)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("export_texture_png_btn")
+                            ) {
+                                Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isPersian) "خروجی تکسچر PNG" else "Export PNG Map",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (currentMat.paintStrokes.isNotEmpty()) {
+                                OutlinedButton(
+                                    onClick = onClearPaintStrokes,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("clear_paint_strokes_btn")
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(if (isPersian) "پاک کردن نقاشی دستی" else "Clear Paint")
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 12 Procedural Texture Pattern Selector
                     Text(
-                        text = if (isPersian) "محیط نورپردازی (HDRI Studio Rig):" else "Studio Lighting Rig:",
+                        text = if (isPersian) "۱. انتخاب الگوی تکسچر (۱۲ بافت مهندسی و طبیعی):" else "1. Select Texture Generator Pattern:",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        maxItemsInEachRow = 3
+                    ) {
+                        TextureType.entries.forEach { texType ->
+                            val isSelected = currentMat.textureType == texType
+                            Surface(
+                                color = if (isSelected) Color(0xFF083344) else StudioSurface,
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .border(
+                                        width = if (isSelected) 1.5.dp else 1.dp,
+                                        color = if (isSelected) CyberCyan else StudioBorder,
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable { onSelectTextureType(texType) }
+                                    .testTag("tex_type_${texType.name.lowercase()}")
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(texType.defaultPrimaryHex))
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(texType.defaultSecondaryHex))
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = if (isPersian) texType.titleFa else texType.titleEn,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (isSelected) CyberCyan else Color.White,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Secondary Texture Pattern Color & Paint Brush Color
+                    Text(
+                        text = if (isPersian) "۲. رنگ دوم بافت و قلم‌موی نقاشی (Pattern & Brush Color):" else "2. Secondary Pattern & Brush Color:",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        quickSwatches.forEach { hex ->
+                            val isSec = currentMat.textureSecondaryHex == hex || brushColorHex == hex
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(hex))
+                                    .border(
+                                        width = if (isSec) 2.5.dp else 1.dp,
+                                        color = if (isSec) CyberCyan else StudioBorder,
+                                        shape = CircleShape
+                                    )
+                                    .clickable {
+                                        brushColorHex = hex
+                                        onUpdateMaterial { it.copy(textureSecondaryHex = hex) }
+                                    }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Texture Scale & Blend Sliders
+                    PbrParameterSlider(
+                        label = if (isPersian) "تراکم و تکرار بافت (Texture Tiling Scale)" else "Texture Tiling Scale",
+                        value = currentMat.textureScale,
+                        valueRange = 1f..12f,
+                        valueText = String.format(Locale.US, "%.1fx", currentMat.textureScale),
+                        onValueChange = { s -> onUpdateMaterial { it.copy(textureScale = s) } },
+                        accent = CyberCyan
+                    )
+
+                    PbrParameterSlider(
+                        label = if (isPersian) "شدت و کنتراست بافت (Pattern Blend)" else "Texture Blend Intensity",
+                        value = currentMat.textureBlend,
+                        valueRange = 0f..1f,
+                        onValueChange = { b -> onUpdateMaterial { it.copy(textureBlend = b) } },
+                        accent = SculptAmber
+                    )
+
+                    PbrParameterSlider(
+                        label = if (isPersian) "ضخامت قلم‌موی نقاشی (Brush Size)" else "UV Paint Brush Size",
+                        value = brushRadiusUv,
+                        valueRange = 0.015f..0.12f,
+                        valueText = String.format(Locale.US, "%d px", (brushRadiusUv * 400).toInt()),
+                        onValueChange = { brushRadiusUv = it },
+                        accent = ManifoldEmerald
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // UV Projection Mode Selector
+                    Text(
+                        text = if (isPersian) "۳. حالت نگاشت سه‌بعدی (UV Mapping Projection):" else "3. 3D UV Projection Mode:",
                         style = MaterialTheme.typography.labelMedium,
                         color = TextSecondary
                     )
@@ -166,19 +402,19 @@ fun MaterialAndLightPanel(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
-                            .padding(vertical = 6.dp),
+                            .padding(top = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        StudioLightingPreset.entries.forEach { preset ->
+                        UvMappingMode.entries.forEach { mode ->
                             FilterChip(
-                                selected = lightingPreset == preset,
-                                onClick = { onSetLightingPreset(preset) },
-                                label = { Text(if (isPersian) preset.labelFa else preset.labelEn) },
+                                selected = currentMat.uvMappingMode == mode,
+                                onClick = { onUpdateMaterial { it.copy(uvMappingMode = mode) } },
+                                label = { Text(if (isPersian) mode.titleFa else mode.titleEn) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = SculptAmber.copy(alpha = 0.22f),
-                                    selectedLabelColor = SculptAmber
+                                    selectedContainerColor = CyberCyan.copy(alpha = 0.22f),
+                                    selectedLabelColor = CyberCyan
                                 ),
-                                modifier = Modifier.testTag("light_preset_${preset.name.lowercase()}")
+                                modifier = Modifier.testTag("uv_mode_${mode.name.lowercase()}")
                             )
                         }
                     }
@@ -186,7 +422,7 @@ fun MaterialAndLightPanel(
             }
         }
 
-        // Custom PBR Sliders & Color Swatches
+        // 2. PBR Base Color & Surface Reflection Properties
         item {
             Card(
                 shape = RoundedCornerShape(18.dp),
@@ -199,9 +435,9 @@ fun MaterialAndLightPanel(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = if (isPersian)
-                                "تنظیمات دقیق متریال PBR (${selectedNode?.nameFa ?: "قطعه انتخابی"})"
+                                "رنگ پایه و خواص فیزیکی سطح (PBR Surface)"
                             else
-                                "PBR Material Editor (${selectedNode?.name ?: "Selected"})",
+                                "Base Color & PBR Surface Properties",
                             style = MaterialTheme.typography.titleMedium,
                             color = Color.White,
                             fontWeight = FontWeight.Bold
@@ -210,7 +446,7 @@ fun MaterialAndLightPanel(
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = if (isPersian) "انتخاب رنگ پایه (Albedo Base Color):" else "Base Color Swatches:",
+                        text = if (isPersian) "انتخاب رنگ اصلی مدل (Primary Albedo Color):" else "Primary Base Color:",
                         style = MaterialTheme.typography.labelMedium,
                         color = TextSecondary
                     )
@@ -252,7 +488,6 @@ fun MaterialAndLightPanel(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Metallic Slider
                     PbrParameterSlider(
                         label = if (isPersian) "ضریب فلزی بودن (Metallic)" else "Metallic Factor",
                         value = currentMat.metallic,
@@ -260,7 +495,6 @@ fun MaterialAndLightPanel(
                         accent = CyberCyan
                     )
 
-                    // Roughness Slider
                     PbrParameterSlider(
                         label = if (isPersian) "زبری و ماتی سطح (Roughness)" else "Roughness Factor",
                         value = currentMat.roughness,
@@ -268,7 +502,6 @@ fun MaterialAndLightPanel(
                         accent = SculptAmber
                     )
 
-                    // Emission Strength Slider
                     PbrParameterSlider(
                         label = if (isPersian) "درخشش نئونی (Emissive Glow)" else "Emissive Glow",
                         value = currentMat.emissionStrength,
@@ -283,7 +516,6 @@ fun MaterialAndLightPanel(
                         accent = ManifoldEmerald
                     )
 
-                    // Opacity Slider
                     PbrParameterSlider(
                         label = if (isPersian) "شفافیت شیشه (Opacity / Alpha)" else "Surface Opacity",
                         value = currentMat.opacity,
@@ -295,10 +527,75 @@ fun MaterialAndLightPanel(
             }
         }
 
-        // 16 Curated PBR Presets
+        // 3. Studio Lighting & Shading Mode
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = StudioSurfaceElevated),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LightMode, contentDescription = null, tint = SculptAmber)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isPersian) "نورپردازی استودیو و حالت شیدر (Studio Shader)" else "Viewport Shading & Studio Lighting",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ViewportShadingMode.entries.forEach { mode ->
+                            FilterChip(
+                                selected = shadingMode == mode,
+                                onClick = { onSetShadingMode(mode) },
+                                label = { Text(if (isPersian) mode.labelFa else mode.labelEn) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = CyberCyan.copy(alpha = 0.22f),
+                                    selectedLabelColor = CyberCyan
+                                ),
+                                modifier = Modifier.testTag("shading_mode_${mode.name.lowercase()}")
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        StudioLightingPreset.entries.forEach { preset ->
+                            FilterChip(
+                                selected = lightingPreset == preset,
+                                onClick = { onSetLightingPreset(preset) },
+                                label = { Text(if (isPersian) preset.labelFa else preset.labelEn) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = SculptAmber.copy(alpha = 0.22f),
+                                    selectedLabelColor = SculptAmber
+                                ),
+                                modifier = Modifier.testTag("light_preset_${preset.name.lowercase()}")
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. 16 Curated PBR + Textured Presets
         item {
             Text(
-                text = if (isPersian) "۱۶ متریال مهندسی و استودیویی آماده (PBR Presets)" else "16 Curated PBR Material Presets",
+                text = if (isPersian) "۱۶ متریال و تکسچر آماده استودیویی (PBR + Texture Presets)" else "16 Curated PBR & Texture Presets",
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.White,
                 fontWeight = FontWeight.Bold
@@ -332,8 +629,18 @@ fun MaterialAndLightPanel(
                                     .size(34.dp)
                                     .clip(CircleShape)
                                     .background(Color(mat.baseColorHex))
-                                    .border(1.5.dp, Color.White.copy(alpha = 0.5f), CircleShape)
-                            )
+                                    .border(1.5.dp, Color.White.copy(alpha = 0.5f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (mat.textureType != TextureType.NONE) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(14.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(mat.textureSecondaryHex))
+                                    )
+                                }
+                            }
                             Spacer(modifier = Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -343,13 +650,94 @@ fun MaterialAndLightPanel(
                                     maxLines = 1
                                 )
                                 Text(
-                                    text = String.format(Locale.US, "M: %.0f%% • R: %.0f%%", mat.metallic * 100, mat.roughness * 100),
+                                    text = if (mat.textureType != TextureType.NONE)
+                                        mat.textureType.titleFa
+                                    else
+                                        String.format(Locale.US, "M: %.0f%% • R: %.0f%%", mat.metallic * 100, mat.roughness * 100),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary
+                                    color = CyberCyan,
+                                    maxLines = 1
                                 )
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Interactive 2D UV Texture Preview & Finger-Painting Canvas.
+ * Renders a 24x24 real-time grid of the active procedural + painted texture and allows finger painting!
+ */
+@Composable
+private fun InteractiveTextureUvCanvas(
+    material: PbrMaterial,
+    brushColorHex: Long,
+    brushRadiusUv: Float,
+    onAddStroke: (CustomPaintStroke) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val currentBrushHex by rememberUpdatedState(brushColorHex)
+    val currentBrushRadius by rememberUpdatedState(brushRadiusUv)
+    val currentOnAddStroke by rememberUpdatedState(onAddStroke)
+
+    Box(
+        modifier = modifier
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    val w = size.width.toFloat().coerceAtLeast(1f)
+                    val h = size.height.toFloat().coerceAtLeast(1f)
+                    val u = (offset.x / w).coerceIn(0f, 1f)
+                    val v = (offset.y / h).coerceIn(0f, 1f)
+                    currentOnAddStroke(
+                        CustomPaintStroke(
+                            u0 = u, v0 = v,
+                            u1 = u, v1 = v,
+                            colorHex = currentBrushHex,
+                            radiusUv = currentBrushRadius
+                        )
+                    )
+                }
+            }
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    val w = size.width.toFloat().coerceAtLeast(1f)
+                    val h = size.height.toFloat().coerceAtLeast(1f)
+                    val p1 = change.position
+                    val p0 = p1 - dragAmount
+                    val u0 = (p0.x / w).coerceIn(0f, 1f)
+                    val v0 = (p0.y / h).coerceIn(0f, 1f)
+                    val u1 = (p1.x / w).coerceIn(0f, 1f)
+                    val v1 = (p1.y / h).coerceIn(0f, 1f)
+                    currentOnAddStroke(
+                        CustomPaintStroke(
+                            u0 = u0, v0 = v0,
+                            u1 = u1, v1 = v1,
+                            colorHex = currentBrushHex,
+                            radiusUv = currentBrushRadius
+                        )
+                    )
+                }
+            }
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val gridRes = 28
+            val cellW = size.width / gridRes
+            val cellH = size.height / gridRes
+
+            for (gy in 0 until gridRes) {
+                val v = (gy + 0.5f) / gridRes
+                for (gx in 0 until gridRes) {
+                    val u = (gx + 0.5f) / gridRes
+                    val (col, _) = TextureEngine.sampleTextureAndRoughness(u, v, material)
+                    drawRect(
+                        color = col.copy(alpha = 1f),
+                        topLeft = Offset(gx * cellW, gy * cellH),
+                        size = Size(cellW + 0.8f, cellH + 0.8f)
+                    )
                 }
             }
         }
@@ -361,6 +749,7 @@ private fun PbrParameterSlider(
     label: String,
     value: Float,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    valueText: String? = null,
     onValueChange: (Float) -> Unit,
     accent: Color
 ) {
@@ -371,13 +760,13 @@ private fun PbrParameterSlider(
         ) {
             Text(text = label, style = MaterialTheme.typography.labelMedium, color = Color.White)
             Text(
-                text = String.format(Locale.US, "%d%%", (value * 100).toInt()),
+                text = valueText ?: String.format(Locale.US, "%d%%", (value * 100).toInt()),
                 style = MaterialTheme.typography.labelSmall,
                 color = accent
             )
         }
         Slider(
-            value = value,
+            value = value.coerceIn(valueRange.start, valueRange.endInclusive),
             onValueChange = onValueChange,
             valueRange = valueRange,
             colors = SliderDefaults.colors(
@@ -413,7 +802,6 @@ fun ExportAndProjectsPanel(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Project Name & Quick Save/Import Header
         item {
             Card(
                 shape = RoundedCornerShape(18.dp),
@@ -473,7 +861,6 @@ fun ExportAndProjectsPanel(
             }
         }
 
-        // Format Selection (GLB, Binary STL, ASCII STL, OBJ, PLY)
         item {
             Text(
                 text = if (isPersian) "انتخاب فرمت خروجی سه‌بعدی واقعی (Real 3D Encoders)" else "Select 3D Export Format",
@@ -519,18 +906,12 @@ fun ExportAndProjectsPanel(
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = if (isPersian) format.titleFa else format.titleEn,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                                Text(
+                                    text = if (isPersian) format.titleFa else format.titleEn,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = format.subtitleFa,
@@ -544,7 +925,6 @@ fun ExportAndProjectsPanel(
             }
         }
 
-        // Export Actions & Real Binary/ASCII File Inspector
         item {
             Card(
                 shape = RoundedCornerShape(18.dp),
@@ -557,31 +937,23 @@ fun ExportAndProjectsPanel(
                     val fileName = exportPayload?.fileName ?: "${projectName}.${selectedFormat.ext}"
                     val byteCount = exportPayload?.bytes?.size ?: 0
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = fileName,
-                                style = MaterialTheme.typography.titleLarge.copy(fontFamily = JetBrainsMonoFontFamily),
-                                color = CyberCyan
-                            )
-                            Text(
-                                text = String.format(
-                                    Locale.US,
-                                    "Size: %,d bytes (%.1f KB) • %d Vertices • %d Triangles",
-                                    byteCount,
-                                    byteCount / 1024f,
-                                    exportPayload?.vertexCount ?: 0,
-                                    exportPayload?.triangleCount ?: 0
-                                ),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
-                            )
-                        }
-                    }
+                    Text(
+                        text = fileName,
+                        style = MaterialTheme.typography.titleLarge.copy(fontFamily = JetBrainsMonoFontFamily),
+                        color = CyberCyan
+                    )
+                    Text(
+                        text = String.format(
+                            Locale.US,
+                            "Size: %,d bytes (%.1f KB) • %d Vertices • %d Triangles",
+                            byteCount,
+                            byteCount / 1024f,
+                            exportPayload?.vertexCount ?: 0,
+                            exportPayload?.triangleCount ?: 0
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
@@ -662,7 +1034,6 @@ fun ExportAndProjectsPanel(
             }
         }
 
-        // Saved Projects in Room Database
         item {
             Text(
                 text = if (isPersian) "پروژه‌های ذخیره‌شده در پایگاه داده (${savedProjects.size})" else "Saved Studio Projects (${savedProjects.size})",
@@ -725,37 +1096,6 @@ fun ExportAndProjectsPanel(
                             )
                         }
                     }
-                }
-            }
-        }
-
-        if (recentExports.isNotEmpty()) {
-            item {
-                Text(
-                    text = if (isPersian) "تاریخچه خروجی‌های اخیر" else "Recent Export History",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextSecondary
-                )
-            }
-            items(recentExports.take(5), key = { it.id }) { log ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(StudioSurface)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "${log.fileName} (${log.formatName})",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "${log.byteSize / 1024} KB • ${log.triangleCount} Tris",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = CyberCyan
-                    )
                 }
             }
         }

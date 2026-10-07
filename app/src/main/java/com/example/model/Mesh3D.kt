@@ -97,7 +97,72 @@ data class TriangleFace(
 }
 
 /**
- * Physically Based Rendering (PBR) Material properties compatible with glTF 2.0 / GLB.
+ * Procedural and hand-painted texture types supported by the Texture Generator.
+ */
+enum class TextureType(
+    val titleFa: String,
+    val titleEn: String,
+    val defaultPrimaryHex: Long,
+    val defaultSecondaryHex: Long
+) {
+    NONE("بدون تکسچر (رنگ ساده)", "Solid Color", 0xFF00E5FF, 0xFF0F172A),
+    CHECKER_UV("شطرنجی استاندارد (UV Grid)", "UV Checkerboard", 0xFF00E5FF, 0xFF1E293B),
+    CARBON_WEAVE("بافت فیبر کربن صنعتی", "Carbon Fiber Weave", 0xFF334155, 0xFF090D16),
+    HEX_ARMOR("زره شش‌ضلعی سایبری (Hex)", "Sci-Fi Hex Armor", 0xFF00E5FF, 0xFF0F172A),
+    MARBLE_VEINS("سنگ مرمر رگه‌دار لوکس", "Luxury Marble Veins", 0xFFF8FAFC, 0xFF475569),
+    WOOD_GRAIN("بافت چوب طبیعی و گره", "Natural Wood Grain", 0xFFD97706, 0xFF78350F),
+    CYBER_CIRCUIT("مدار الکترونیکی نئون (PCB)", "Cyber PCB Circuit", 0xFF10B981, 0xFF064E3B),
+    BRUSHED_METAL("فلز برس‌خورده صنعتی", "Brushed Metal", 0xFF94A3B8, 0xFF334155),
+    RUST_WEATHERED("فلز زنگ‌زده و کهنه‌کاری", "Weathered Rust", 0xFFEA580C, 0xFF431407),
+    BRICK_TILES("آجرنمای معماری و کاشی", "Architectural Brick", 0xFFEF4444, 0xFF1E293B),
+    CAMO_TACTICAL("استتار تاکتیکی (Camo)", "Tactical Camouflage", 0xFF22C55E, 0xFF14532D),
+    CUSTOM_PAINT("نقاشی دستی روی تکسچر (Paint)", "Custom Hand-Painted", 0xFF38BDF8, 0xFFF43F5E)
+}
+
+/**
+ * 3D UV coordinate projection modes.
+ */
+enum class UvMappingMode(val titleFa: String, val titleEn: String) {
+    TRIPLANAR_BOX("نگاشت سه‌جهته (Triplanar)", "Triplanar Box"),
+    SPHERICAL("نگاشت کروی (Spherical)", "Spherical UV"),
+    CYLINDRICAL("نگاشت استوانه‌ای (Cylindrical)", "Cylindrical UV"),
+    PLANAR_XY("نگاشت صفحه‌ای (Planar)", "Planar Projection")
+}
+
+/**
+ * A 2D brush dab / stroke segment in normalized UV space (0..1, 0..1) for custom texture painting.
+ */
+data class CustomPaintStroke(
+    val u0: Float,
+    val v0: Float,
+    val u1: Float,
+    val v1: Float,
+    val colorHex: Long,
+    val radiusUv: Float = 0.045f
+) {
+    fun toJson(): JSONArray = JSONArray().apply {
+        put(u0.toDouble())
+        put(v0.toDouble())
+        put(u1.toDouble())
+        put(v1.toDouble())
+        put(colorHex)
+        put(radiusUv.toDouble())
+    }
+
+    companion object {
+        fun fromJson(arr: JSONArray): CustomPaintStroke = CustomPaintStroke(
+            u0 = arr.optDouble(0, 0.5).toFloat(),
+            v0 = arr.optDouble(1, 0.5).toFloat(),
+            u1 = arr.optDouble(2, 0.5).toFloat(),
+            v1 = arr.optDouble(3, 0.5).toFloat(),
+            colorHex = arr.optLong(4, 0xFF00E5FF),
+            radiusUv = arr.optDouble(5, 0.045).toFloat()
+        )
+    }
+}
+
+/**
+ * Physically Based Rendering (PBR) Material + Procedural/Painted Texture properties compatible with glTF 2.0 / GLB.
  */
 data class PbrMaterial(
     val name: String = "Standard PBR",
@@ -108,8 +173,17 @@ data class PbrMaterial(
     val emissionHex: Long = 0xFF000000,
     val emissionStrength: Float = 0.0f,
     val opacity: Float = 1.0f,
-    val flatShading: Boolean = false
+    val flatShading: Boolean = false,
+    val textureType: TextureType = TextureType.NONE,
+    val textureSecondaryHex: Long = 0xFF0F172A,
+    val textureScale: Float = 4.0f,
+    val textureBlend: Float = 0.85f,
+    val uvMappingMode: UvMappingMode = UvMappingMode.TRIPLANAR_BOX,
+    val paintStrokes: List<CustomPaintStroke> = emptyList()
 ) {
+    fun hasActiveTexture(): Boolean =
+        textureType != TextureType.NONE || paintStrokes.isNotEmpty()
+
     fun toJson(): JSONObject = JSONObject().apply {
         put("name", name)
         put("nameFa", nameFa)
@@ -120,20 +194,52 @@ data class PbrMaterial(
         put("emissionStrength", emissionStrength.toDouble())
         put("opacity", opacity.toDouble())
         put("flatShading", flatShading)
+        put("textureType", textureType.name)
+        put("textureSecondaryHex", textureSecondaryHex)
+        put("textureScale", textureScale.toDouble())
+        put("textureBlend", textureBlend.toDouble())
+        put("uvMappingMode", uvMappingMode.name)
+        if (paintStrokes.isNotEmpty()) {
+            val sArr = JSONArray()
+            paintStrokes.forEach { sArr.put(it.toJson()) }
+            put("paintStrokes", sArr)
+        }
     }
 
     companion object {
-        fun fromJson(obj: JSONObject): PbrMaterial = PbrMaterial(
-            name = obj.optString("name", "Standard PBR"),
-            nameFa = obj.optString("nameFa", "متریال استاندارد"),
-            baseColorHex = obj.optLong("baseColorHex", 0xFF00E5FF),
-            metallic = obj.optDouble("metallic", 0.35).toFloat(),
-            roughness = obj.optDouble("roughness", 0.30).toFloat(),
-            emissionHex = obj.optLong("emissionHex", 0xFF000000),
-            emissionStrength = obj.optDouble("emissionStrength", 0.0).toFloat(),
-            opacity = obj.optDouble("opacity", 1.0).toFloat(),
-            flatShading = obj.optBoolean("flatShading", false)
-        )
+        fun fromJson(obj: JSONObject): PbrMaterial {
+            val texName = obj.optString("textureType", TextureType.NONE.name)
+            val texType = runCatching { TextureType.valueOf(texName) }.getOrDefault(TextureType.NONE)
+            val uvName = obj.optString("uvMappingMode", UvMappingMode.TRIPLANAR_BOX.name)
+            val uvMode = runCatching { UvMappingMode.valueOf(uvName) }.getOrDefault(UvMappingMode.TRIPLANAR_BOX)
+
+            val strokesArr = obj.optJSONArray("paintStrokes")
+            val strokes = if (strokesArr != null) {
+                ArrayList<CustomPaintStroke>(strokesArr.length()).apply {
+                    for (i in 0 until strokesArr.length()) {
+                        strokesArr.optJSONArray(i)?.let { add(CustomPaintStroke.fromJson(it)) }
+                    }
+                }
+            } else emptyList()
+
+            return PbrMaterial(
+                name = obj.optString("name", "Standard PBR"),
+                nameFa = obj.optString("nameFa", "متریال استاندارد"),
+                baseColorHex = obj.optLong("baseColorHex", 0xFF00E5FF),
+                metallic = obj.optDouble("metallic", 0.35).toFloat(),
+                roughness = obj.optDouble("roughness", 0.30).toFloat(),
+                emissionHex = obj.optLong("emissionHex", 0xFF000000),
+                emissionStrength = obj.optDouble("emissionStrength", 0.0).toFloat(),
+                opacity = obj.optDouble("opacity", 1.0).toFloat(),
+                flatShading = obj.optBoolean("flatShading", false),
+                textureType = texType,
+                textureSecondaryHex = obj.optLong("textureSecondaryHex", 0xFF0F172A),
+                textureScale = obj.optDouble("textureScale", 4.0).toFloat(),
+                textureBlend = obj.optDouble("textureBlend", 0.85).toFloat(),
+                uvMappingMode = uvMode,
+                paintStrokes = strokes
+            )
+        }
     }
 }
 
@@ -154,9 +260,6 @@ data class SceneNode3D(
     val visible: Boolean = true,
     val locked: Boolean = false
 ) {
-    /**
-     * Transforms local vertices into 3D world space using Scale -> Rotation (X, Y, Z) -> Position.
-     */
     fun worldVertices(): List<Vec3> {
         val rx = Math.toRadians(rotation.x.toDouble()).toFloat()
         val ry = Math.toRadians(rotation.y.toDouble()).toFloat()
@@ -168,9 +271,6 @@ data class SceneNode3D(
         }
     }
 
-    /**
-     * Computes averaged per-vertex normals in world space for smooth shading & GLB export.
-     */
     fun computeWorldVertexNormals(worldVerts: List<Vec3> = worldVertices()): List<Vec3> {
         val accum = Array(worldVerts.size) { Vec3(0f, 0f, 0f) }
         for (face in faces) {
@@ -236,10 +336,6 @@ data class SceneNode3D(
     }
 }
 
-/**
- * Engineering & 3D Printing diagnostics calculated in real-time from scene geometry.
- * Scale convention: 1.0 studio unit = 10.0 mm (1.0 cm) for 3D printing slicers.
- */
 data class MeshEngineeringStats(
     val objectCount: Int,
     val totalVertices: Int,
@@ -348,8 +444,8 @@ enum class ExportFormat3D(
         mimeType = "model/gltf-binary",
         titleFa = "فرمت باینری استاندارد GLB (glTF 2.0)",
         titleEn = "GLB Binary (glTF 2.0)",
-        subtitleFa = "حفظ کامل متریال PBR، رنگ، متالیک، نرمال‌ها و ساختار صحنه (مناسب وب، بازی، AR و Blender)",
-        badge = "PBR + Web/Game"
+        subtitleFa = "حفظ کامل متریال PBR، تکسچر UV، متالیک، نرمال‌ها و ساختار صحنه (مناسب وب، بازی، AR و Blender)",
+        badge = "PBR + Texture"
     ),
     STL_BINARY(
         ext = "stl",
@@ -370,17 +466,17 @@ enum class ExportFormat3D(
     OBJ(
         ext = "obj",
         mimeType = "model/obj",
-        titleFa = "فرمت جهانی Wavefront OBJ",
-        titleEn = "Wavefront OBJ",
-        subtitleFa = "سازگار با تمامی نرم‌افزارهای گرافیکی (3ds Max، Maya، ZBrush، Blender) شامل گروه‌ها و نرمال‌ها",
+        titleFa = "فرمت جهانی Wavefront OBJ + UV",
+        titleEn = "Wavefront OBJ (+UV)",
+        subtitleFa = "سازگار با تمامی نرم‌افزارهای گرافیکی (3ds Max، Maya، ZBrush، Blender) شامل مختصات تکسچر vt و نرمال‌ها",
         badge = "Universal 3D"
     ),
     PLY(
         ext = "ply",
         mimeType = "application/octet-stream",
         titleFa = "فرمت علمی و رنگی Stanford PLY",
-        titleEn = "Stanford PLY (Vertex RGB)",
-        subtitleFa = "ذخیره دقیق رئوس، بردارهای نرمال و رنگ RGB هر رأس برای اسکن سه‌بعدی و پردازش مش",
+        titleEn = "Stanford PLY (Baked Texture RGB)",
+        subtitleFa = "ذخیره دقیق رئوس، بردارهای نرمال و رنگ پخته‌شده تکسچر روی هر رأس (Baked Vertex Color)",
         badge = "Vertex Color"
     )
 }

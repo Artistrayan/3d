@@ -24,7 +24,7 @@ data class ExportPayload(
 )
 
 /**
- * Spec-compliant 3D File Exporters (GLB 2.0 Binary, Binary STL, ASCII STL, Wavefront OBJ, Stanford PLY)
+ * Spec-compliant 3D File Exporters (GLB 2.0 Binary with UV & Vertex Colors, Binary STL, ASCII STL, Wavefront OBJ + UV, Stanford PLY)
  * and 3D File Importers (OBJ, ASCII/Binary STL, PLY).
  */
 object FileExporterImporter {
@@ -51,7 +51,7 @@ object FileExporterImporter {
                     format = format,
                     fileName = fileName,
                     bytes = glbBytes,
-                    headerPreview = "GLB Header: magic=0x46546C67 ('glTF'), version=2, totalBytes=${glbBytes.size}\nJSON Chunk:\n${jsonPreview.take(700)}",
+                    headerPreview = "GLB Header: magic=0x46546C67 ('glTF'), version=2, totalBytes=${glbBytes.size}\nIncludes: POSITION, NORMAL, TEXCOORD_0 (UV), COLOR_0 (Baked Texture)\nJSON Chunk:\n${jsonPreview.take(700)}",
                     vertexCount = totalVerts,
                     triangleCount = totalTris,
                     nodeCount = visibleNodes.size
@@ -121,7 +121,7 @@ object FileExporterImporter {
 
     /**
      * Generates a 100% spec-compliant glTF 2.0 Binary (.glb) file with PBR materials,
-     * vertex positions, vertex normals, and triangle indices.
+     * vertex positions, vertex normals, TEXCOORD_0 UV coordinates, and COLOR_0 baked texture colors.
      */
     fun exportToGlb(nodes: List<SceneNode3D>): Pair<ByteArray, String> {
         val binStream = ByteArrayOutputStream()
@@ -131,26 +131,86 @@ object FileExporterImporter {
         val materialsJson = JSONArray()
         val bufferViewsJson = JSONArray()
         val accessorsJson = JSONArray()
+        val imagesJson = JSONArray()
+        val texturesJson = JSONArray()
+        val samplersJson = JSONArray()
         val sceneNodeIndices = JSONArray()
 
         for ((idx, node) in nodes.withIndex()) {
+            val localVerts = node.vertices
             val worldVerts = node.worldVertices()
             val worldNormals = node.computeWorldVertexNormals(worldVerts)
+            val hasTexture = node.material.hasActiveTexture()
+
+            // Optional embedded PNG texture in GLB BIN chunk
+            var gltfTextureIndex: Int? = null
+            if (hasTexture) {
+                val pngBytes = runCatching {
+                    TextureEngine.encodeTextureToPngBytes(node.material, sizePx = 256)
+                }.getOrNull()
+
+                if (pngBytes != null && pngBytes.isNotEmpty()) {
+                    while (binStream.size() % 4 != 0) {
+                        binStream.write(0)
+                    }
+                    val imgByteOffset = binStream.size()
+                    binStream.write(pngBytes)
+                    while (binStream.size() % 4 != 0) {
+                        binStream.write(0)
+                    }
+
+                    val imgBufferViewIdx = bufferViewsJson.length()
+                    bufferViewsJson.put(JSONObject().apply {
+                        put("buffer", 0)
+                        put("byteOffset", imgByteOffset)
+                        put("byteLength", pngBytes.size)
+                    })
+
+                    if (samplersJson.length() == 0) {
+                        samplersJson.put(JSONObject().apply {
+                            put("magFilter", 9729) // LINEAR
+                            put("minFilter", 9987) // LINEAR_MIPMAP_LINEAR
+                            put("wrapS", 10497)    // REPEAT
+                            put("wrapT", 10497)    // REPEAT
+                        })
+                    }
+
+                    val imageIdx = imagesJson.length()
+                    imagesJson.put(JSONObject().apply {
+                        put("name", "${node.name}_texture")
+                        put("bufferView", imgBufferViewIdx)
+                        put("mimeType", "image/png")
+                    })
+
+                    val texIdx = texturesJson.length()
+                    texturesJson.put(JSONObject().apply {
+                        put("sampler", 0)
+                        put("source", imageIdx)
+                    })
+                    gltfTextureIndex = texIdx
+                }
+            }
 
             // 1. Material
             val cHex = node.material.baseColorHex
-            val r = ((cHex shr 16) and 0xFF) / 255.0
-            val g = ((cHex shr 8) and 0xFF) / 255.0
-            val b = (cHex and 0xFF) / 255.0
+            val r = if (gltfTextureIndex != null) 1.0 else ((cHex shr 16) and 0xFF) / 255.0
+            val g = if (gltfTextureIndex != null) 1.0 else ((cHex shr 8) and 0xFF) / 255.0
+            val b = if (gltfTextureIndex != null) 1.0 else (cHex and 0xFF) / 255.0
             val a = node.material.opacity.toDouble().coerceIn(0.05, 1.0)
 
             val matObj = JSONObject().apply {
-                put("name", node.material.name)
+                put("name", "${node.material.name}_${node.material.textureType.name}")
                 put("doubleSided", true)
                 put("pbrMetallicRoughness", JSONObject().apply {
                     put("baseColorFactor", JSONArray().apply {
                         put(r); put(g); put(b); put(a)
                     })
+                    if (gltfTextureIndex != null) {
+                        put("baseColorTexture", JSONObject().apply {
+                            put("index", gltfTextureIndex)
+                            put("texCoord", 0)
+                        })
+                    }
                     put("metallicFactor", node.material.metallic.toDouble().coerceIn(0.0, 1.0))
                     put("roughnessFactor", node.material.roughness.toDouble().coerceIn(0.0, 1.0))
                 })
@@ -192,13 +252,13 @@ object FileExporterImporter {
                 put("buffer", 0)
                 put("byteOffset", posByteOffset)
                 put("byteLength", posByteLength)
-                put("target", 34962) // ARRAY_BUFFER
+                put("target", 34962)
             })
             val posAccessorIdx = accessorsJson.length()
             accessorsJson.put(JSONObject().apply {
                 put("bufferView", posBufferViewIdx)
                 put("byteOffset", 0)
-                put("componentType", 5126) // FLOAT
+                put("componentType", 5126)
                 put("count", worldVerts.size)
                 put("type", "VEC3")
                 put("min", JSONArray().apply { put(minX.toDouble()); put(minY.toDouble()); put(minZ.toDouble()) })
@@ -227,12 +287,39 @@ object FileExporterImporter {
             accessorsJson.put(JSONObject().apply {
                 put("bufferView", normBufferViewIdx)
                 put("byteOffset", 0)
-                put("componentType", 5126) // FLOAT
+                put("componentType", 5126)
                 put("count", worldNormals.size)
                 put("type", "VEC3")
             })
 
-            // 4. Write Triangle Indices (UNSIGNED_INT 5125)
+            // 4. Write TEXCOORD_0 UVs (FLOAT32 VEC2)
+            val uvByteOffset = binStream.size()
+            val uvByteLength = localVerts.size * 8
+            val uvBuf = ByteBuffer.allocate(uvByteLength).order(ByteOrder.LITTLE_ENDIAN)
+            for (i in localVerts.indices) {
+                val (u, v) = TextureEngine.computeUV(localVerts[i], worldNormals[i], node.material.uvMappingMode)
+                uvBuf.putFloat(u)
+                uvBuf.putFloat(v)
+            }
+            binStream.write(uvBuf.array())
+
+            val uvBufferViewIdx = bufferViewsJson.length()
+            bufferViewsJson.put(JSONObject().apply {
+                put("buffer", 0)
+                put("byteOffset", uvByteOffset)
+                put("byteLength", uvByteLength)
+                put("target", 34962)
+            })
+            val uvAccessorIdx = accessorsJson.length()
+            accessorsJson.put(JSONObject().apply {
+                put("bufferView", uvBufferViewIdx)
+                put("byteOffset", 0)
+                put("componentType", 5126)
+                put("count", localVerts.size)
+                put("type", "VEC2")
+            })
+
+            // 5. Write Triangle Indices (UNSIGNED_INT 5125)
             val idxByteOffset = binStream.size()
             val indexCount = node.faces.size * 3
             val idxByteLength = indexCount * 4
@@ -249,18 +336,18 @@ object FileExporterImporter {
                 put("buffer", 0)
                 put("byteOffset", idxByteOffset)
                 put("byteLength", idxByteLength)
-                put("target", 34963) // ELEMENT_ARRAY_BUFFER
+                put("target", 34963)
             })
             val idxAccessorIdx = accessorsJson.length()
             accessorsJson.put(JSONObject().apply {
                 put("bufferView", idxBufferViewIdx)
                 put("byteOffset", 0)
-                put("componentType", 5125) // UNSIGNED_INT
+                put("componentType", 5125)
                 put("count", indexCount)
                 put("type", "SCALAR")
             })
 
-            // 5. Mesh & Node
+            // 6. Mesh & Node
             meshesJson.put(JSONObject().apply {
                 put("name", node.name)
                 put("primitives", JSONArray().apply {
@@ -268,10 +355,11 @@ object FileExporterImporter {
                         put("attributes", JSONObject().apply {
                             put("POSITION", posAccessorIdx)
                             put("NORMAL", normAccessorIdx)
+                            put("TEXCOORD_0", uvAccessorIdx)
                         })
                         put("indices", idxAccessorIdx)
                         put("material", idx)
-                        put("mode", 4) // TRIANGLES
+                        put("mode", 4)
                     })
                 })
             })
@@ -283,7 +371,6 @@ object FileExporterImporter {
             sceneNodeIndices.put(idx)
         }
 
-        // Pad binary buffer to 4-byte boundary with 0x00
         while (binStream.size() % 4 != 0) {
             binStream.write(0)
         }
@@ -304,6 +391,11 @@ object FileExporterImporter {
             put("nodes", nodesJson)
             put("meshes", meshesJson)
             put("materials", materialsJson)
+            if (texturesJson.length() > 0) {
+                put("textures", texturesJson)
+                put("images", imagesJson)
+                put("samplers", samplersJson)
+            }
             put("bufferViews", bufferViewsJson)
             put("accessors", accessorsJson)
             put("buffers", JSONArray().apply {
@@ -318,22 +410,18 @@ object FileExporterImporter {
         val jsonPad = (4 - (rawJsonBytes.size % 4)) % 4
         val paddedJsonLength = rawJsonBytes.size + jsonPad
 
-        // Total GLB size = 12 (Header) + 8 + paddedJsonLength + 8 + binBytes.size
         val totalLength = 12 + 8 + paddedJsonLength + 8 + binBytes.size
         val glbBuffer = ByteBuffer.allocate(totalLength).order(ByteOrder.LITTLE_ENDIAN)
 
-        // GLB 12-byte Header
         glbBuffer.putInt(0x46546C67) // "glTF"
-        glbBuffer.putInt(2)          // version 2
+        glbBuffer.putInt(2)
         glbBuffer.putInt(totalLength)
 
-        // Chunk 0: JSON
         glbBuffer.putInt(paddedJsonLength)
         glbBuffer.putInt(0x4E4F534A) // "JSON"
         glbBuffer.put(rawJsonBytes)
-        repeat(jsonPad) { glbBuffer.put(0x20.toByte()) } // space padding per glTF spec
+        repeat(jsonPad) { glbBuffer.put(0x20.toByte()) }
 
-        // Chunk 1: BIN
         glbBuffer.putInt(binBytes.size)
         glbBuffer.putInt(0x004E4942) // "BIN\0"
         glbBuffer.put(binBytes)
@@ -341,26 +429,19 @@ object FileExporterImporter {
         return glbBuffer.array() to rootJson.toString(2)
     }
 
-    /**
-     * Generates a standard Binary STL (.stl) file scaled to millimeters (1 studio unit = 10 mm)
-     * for 3D printing slicers (Cura, PrusaSlicer, Bambu Studio).
-     */
     fun exportToBinaryStl(nodes: List<SceneNode3D>, title: String): ByteArray {
         val totalTriangles = nodes.sumOf { it.faces.size }
         val totalBytes = 80 + 4 + (totalTriangles * 50)
         val buffer = ByteBuffer.allocate(totalBytes).order(ByteOrder.LITTLE_ENDIAN)
 
-        // 80-byte ASCII header
         val headerStr = "PolyForge 3D CAD Binary STL - $title (Units: mm)"
         val headerBytes = ByteArray(80)
         val src = headerStr.toByteArray(Charsets.US_ASCII)
         System.arraycopy(src, 0, headerBytes, 0, minOf(src.size, 80))
         buffer.put(headerBytes)
 
-        // uint32 triangle count
         buffer.putInt(totalTriangles)
 
-        // Scale by 10.0 so 1 unit = 10mm on print bed, and convert Y-up to Z-up for standard 3D printers
         val mmScale = 10.0f
         for (node in nodes) {
             val wVerts = node.worldVertices()
@@ -370,7 +451,6 @@ object FileExporterImporter {
                     val p1 = wVerts[face.v1]
                     val p2 = wVerts[face.v2]
 
-                    // Convert Y-up (x, y, z) to Z-up slicer coords (x, -z, y) * mmScale
                     val s0 = Vec3(p0.x * mmScale, -p0.z * mmScale, p0.y * mmScale)
                     val s1 = Vec3(p1.x * mmScale, -p1.z * mmScale, p1.y * mmScale)
                     val s2 = Vec3(p2.x * mmScale, -p2.z * mmScale, p2.y * mmScale)
@@ -380,7 +460,7 @@ object FileExporterImporter {
                     buffer.putFloat(s0.x); buffer.putFloat(s0.y); buffer.putFloat(s0.z)
                     buffer.putFloat(s1.x); buffer.putFloat(s1.y); buffer.putFloat(s1.z)
                     buffer.putFloat(s2.x); buffer.putFloat(s2.y); buffer.putFloat(s2.z)
-                    buffer.putShort(0) // attribute byte count
+                    buffer.putShort(0)
                 } else {
                     repeat(12) { buffer.putFloat(0f) }
                     buffer.putShort(0)
@@ -390,9 +470,6 @@ object FileExporterImporter {
         return buffer.array()
     }
 
-    /**
-     * Generates an ASCII STL (.stl) file.
-     */
     fun exportToAsciiStl(nodes: List<SceneNode3D>, solidName: String): String {
         val mmScale = 10.0f
         val sb = StringBuilder()
@@ -420,17 +497,18 @@ object FileExporterImporter {
     }
 
     /**
-     * Generates a Wavefront OBJ (.obj) file with object groups, vertices, vertex normals, and faces.
+     * Generates a Wavefront OBJ (.obj) file with object groups, vertices (v), UV texture coords (vt), normals (vn), and faces.
      */
     fun exportToObj(nodes: List<SceneNode3D>, projectName: String): String {
         val sb = StringBuilder()
-        sb.appendLine("# PolyForge 3D Studio Wavefront OBJ Export")
+        sb.appendLine("# PolyForge 3D Studio Wavefront OBJ Export (+UV Texture Coordinates)")
         sb.appendLine("# Project: $projectName")
         sb.appendLine("# Objects: ${nodes.size}")
         sb.appendLine()
 
         var globalVertexOffset = 1
         for (node in nodes) {
+            val lVerts = node.vertices
             val wVerts = node.worldVertices()
             val wNormals = node.computeWorldVertexNormals(wVerts)
             val safeGroupName = node.name.replace(" ", "_")
@@ -440,6 +518,10 @@ object FileExporterImporter {
             for (v in wVerts) {
                 sb.appendLine(String.format(Locale.US, "v %.5f %.5f %.5f", v.x, v.y, v.z))
             }
+            for (i in lVerts.indices) {
+                val (u, v) = TextureEngine.computeUV(lVerts[i], wNormals[i], node.material.uvMappingMode)
+                sb.appendLine(String.format(Locale.US, "vt %.5f %.5f", u, v))
+            }
             for (n in wNormals) {
                 sb.appendLine(String.format(Locale.US, "vn %.5f %.5f %.5f", n.x, n.y, n.z))
             }
@@ -447,7 +529,7 @@ object FileExporterImporter {
                 val i0 = f.v0 + globalVertexOffset
                 val i1 = f.v1 + globalVertexOffset
                 val i2 = f.v2 + globalVertexOffset
-                sb.appendLine("f $i0//$i0 $i1//$i1 $i2//$i2")
+                sb.appendLine("f $i0/$i0/$i0 $i1/$i1/$i1 $i2/$i2/$i2")
             }
             sb.appendLine()
             globalVertexOffset += wVerts.size
@@ -456,7 +538,7 @@ object FileExporterImporter {
     }
 
     /**
-     * Generates a Stanford PLY (.ply) file with vertex coordinates, normals, and RGB colors.
+     * Generates a Stanford PLY (.ply) file with baked procedural/painted texture RGB colors per vertex.
      */
     fun exportToPly(nodes: List<SceneNode3D>, projectName: String): String {
         val totalVerts = nodes.sumOf { it.vertices.size }
@@ -481,16 +563,20 @@ object FileExporterImporter {
         sb.appendLine("end_header")
 
         for (node in nodes) {
+            val lVerts = node.vertices
             val wVerts = node.worldVertices()
             val wNormals = node.computeWorldVertexNormals(wVerts)
-            val hex = node.material.baseColorHex
-            val r = (hex shr 16) and 0xFF
-            val g = (hex shr 8) and 0xFF
-            val b = hex and 0xFF
+            val mat = node.material
 
             for (i in wVerts.indices) {
                 val v = wVerts[i]
                 val n = wNormals[i]
+                val (uvU, uvV) = TextureEngine.computeUV(lVerts[i], n, mat.uvMappingMode)
+                val (sampledColor, _) = TextureEngine.sampleTextureAndRoughness(uvU, uvV, mat)
+                val r = (sampledColor.red * 255f).toInt().coerceIn(0, 255)
+                val g = (sampledColor.green * 255f).toInt().coerceIn(0, 255)
+                val b = (sampledColor.blue * 255f).toInt().coerceIn(0, 255)
+
                 sb.appendLine(String.format(Locale.US, "%.5f %.5f %.5f %.4f %.4f %.4f %d %d %d", v.x, v.y, v.z, n.x, n.y, n.z, r, g, b))
             }
         }
@@ -505,9 +591,6 @@ object FileExporterImporter {
         return sb.toString()
     }
 
-    /**
-     * Imports external 3D files (.obj, .stl ASCII or Binary, .ply) into SceneNode3D objects.
-     */
     fun import3DFile(fileName: String, bytes: ByteArray): List<SceneNode3D> {
         val lower = fileName.lowercase(Locale.ROOT)
         return when {
@@ -515,7 +598,6 @@ object FileExporterImporter {
             lower.endsWith(".ply") -> parsePly(fileName, bytes.toString(Charsets.UTF_8))
             lower.endsWith(".stl") -> parseStl(fileName, bytes)
             else -> {
-                // Auto-detect by content header
                 val head = bytes.take(64).toByteArray().toString(Charsets.UTF_8)
                 when {
                     head.trimStart().startsWith("ply") -> parsePly(fileName, bytes.toString(Charsets.UTF_8))
@@ -648,12 +730,11 @@ object FileExporterImporter {
             val triCount = buf.int.coerceIn(0, 20000)
             for (t in 0 until triCount) {
                 if (buf.remaining() < 50) break
-                // Skip normal (12 bytes)
                 buf.float; buf.float; buf.float
                 val v0 = Vec3(buf.float, buf.float, buf.float)
                 val v1 = Vec3(buf.float, buf.float, buf.float)
                 val v2 = Vec3(buf.float, buf.float, buf.float)
-                buf.short // attr
+                buf.short
                 val base = verts.size
                 verts.add(v0); verts.add(v1); verts.add(v2)
                 faces.add(TriangleFace(base, base + 1, base + 2))

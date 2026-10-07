@@ -30,6 +30,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
+import com.example.engine.TextureEngine
 import com.example.model.AxisConstraint
 import com.example.model.MeshEngineeringStats
 import com.example.model.SceneNode3D
@@ -50,7 +51,6 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 private data class ProjectedTriangle(
     val nodeId: String,
@@ -146,7 +146,7 @@ fun Viewport3DCanvas(
             .testTag("viewport_3d_canvas")
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
-                    if ( abs(zoom - 1f) > 0.015f) {
+                    if (abs(zoom - 1f) > 0.015f) {
                         currentOnZoomPan(zoom, pan.x, pan.y)
                     } else if (currentToolMode != TransformToolMode.SELECT_ORBIT && currentSelectedId != null) {
                         currentOnTransformDrag(pan.x, pan.y)
@@ -172,7 +172,7 @@ fun Viewport3DCanvas(
             if (w <= 10f || h <= 10f) return@Canvas
 
             val cx = w * 0.5f + cameraPanX
-            val cy = h * 0.52f + cameraPanY
+            val cy = h * 0.48f + cameraPanY
             val baseScale = min(w, h) * 0.48f
 
             val yawRad = Math.toRadians(effectiveYaw.toDouble()).toFloat()
@@ -183,7 +183,6 @@ fun Viewport3DCanvas(
             val fovFactor = 3.8f
 
             fun worldToCamera(v: Vec3): Vec3 {
-                // Rotate Y then Rotate X
                 val x1 = v.x * cosY + v.z * sinY
                 val z1 = -v.x * sinY + v.z * cosY
                 val y2 = v.y * cosP - z1 * sinP
@@ -207,13 +206,12 @@ fun Viewport3DCanvas(
                 return scr to cam.z
             }
 
-            // 1. Draw Perspective CAD Ground Grid & Build Plate (Y = -1.0f default floor or minY)
+            // 1. Draw Perspective CAD Ground Grid & Build Plate (Y = -1.0f default floor)
             val gridY = -1.0f
             if (showGrid) {
                 val gridRange = 5
                 for (i in -gridRange..gridRange) {
                     val f = i.toFloat()
-                    // Lines parallel to X axis
                     val pStartX = projectWorld(Vec3(-gridRange.toFloat(), gridY, f))
                     val pEndX = projectWorld(Vec3(gridRange.toFloat(), gridY, f))
                     if (pStartX != null && pEndX != null) {
@@ -225,7 +223,6 @@ fun Viewport3DCanvas(
                             strokeWidth = if (isCenterZ) 2.4f else if (i % 2 == 0) 1.3f else 0.8f
                         )
                     }
-                    // Lines parallel to Z axis
                     val pStartZ = projectWorld(Vec3(f, gridY, -gridRange.toFloat()))
                     val pEndZ = projectWorld(Vec3(f, gridY, gridRange.toFloat()))
                     if (pStartZ != null && pEndZ != null) {
@@ -239,20 +236,19 @@ fun Viewport3DCanvas(
                     }
                 }
 
-                // Vertical Y-axis reference line through origin
                 val originBottom = projectWorld(Vec3(0f, gridY, 0f))
-                val originTop = projectWorld(Vec3(0f, gridY + 2.6f, 0f))
+                val originTop = projectWorld(Vec3(0f, gridY + 2.4f, 0f))
                 if (originBottom != null && originTop != null) {
                     drawLine(
-                        color = AxisGreenY.copy(alpha = 0.40f),
+                        color = AxisGreenY.copy(alpha = 0.35f),
                         start = originBottom.first,
                         end = originTop.first,
-                        strokeWidth = 1.5f
+                        strokeWidth = 1.4f
                     )
                 }
             }
 
-            // 2. Collect & Shade All Visible Triangles
+            // 2. Collect & Shade All Visible Triangles (with Real-Time Procedural + Hand-Painted Texture Sampling!)
             val triangleBuffer = ArrayList<ProjectedTriangle>(2048)
             val vertexDotList = ArrayList<Pair<Offset, Boolean>>()
             val hitBoxes = ArrayList<NodeScreenHitBox>(nodes.size)
@@ -263,7 +259,6 @@ fun Viewport3DCanvas(
             val groundColor = Color(lightingPreset.ambientGroundHex)
             val rimColor = Color(lightingPreset.rimColorHex)
 
-            // View direction in world space (camera looking toward origin)
             val viewDirWorld = Vec3(
                 -sinY * cosP,
                 sinP,
@@ -274,9 +269,9 @@ fun Viewport3DCanvas(
             for (node in nodes) {
                 if (!node.visible || node.vertices.isEmpty()) continue
                 val isSelected = node.id == selectedNodeId
+                val localVerts = node.vertices
                 val worldVerts = node.worldVertices()
 
-                // Project all vertices of this node
                 val projOffsets = arrayOfNulls<Offset>(worldVerts.size)
                 val projDepths = FloatArray(worldVerts.size)
 
@@ -316,13 +311,12 @@ fun Viewport3DCanvas(
                         )
                     )
 
-                    // Draw subtle ground shadow ellipse on the floor plane
                     val shadowCenter3D = Vec3(node.position.x, gridY + 0.01f, node.position.z)
                     val shadowLeft3D = Vec3(node.position.x - 0.75f * node.scale.x, gridY + 0.01f, node.position.z)
                     val sCenter = projectWorld(shadowCenter3D)
                     val sEdge = projectWorld(shadowLeft3D)
                     if (sCenter != null && sEdge != null) {
-                        val sr = (sCenter.first.x - sEdge.first.x).let { abs(it) }.coerceIn(12f, 160f)
+                        val sr = abs(sCenter.first.x - sEdge.first.x).coerceIn(12f, 160f)
                         drawOval(
                             color = Color.Black.copy(alpha = 0.28f),
                             topLeft = Offset(sCenter.first.x - sr, sCenter.first.y - sr * 0.42f),
@@ -332,13 +326,14 @@ fun Viewport3DCanvas(
                 }
 
                 val mat = node.material
-                val baseColor = if (shadingMode == ViewportShadingMode.CLAY_SCULPT) {
+                val hasTex = mat.hasActiveTexture() && shadingMode != ViewportShadingMode.CLAY_SCULPT
+                val fallbackBaseColor = if (shadingMode == ViewportShadingMode.CLAY_SCULPT) {
                     Color(0xFFD97757)
                 } else {
                     Color(mat.baseColorHex)
                 }
-                val metallic = if (shadingMode == ViewportShadingMode.CLAY_SCULPT) 0.05f else mat.metallic
-                val roughness = if (shadingMode == ViewportShadingMode.CLAY_SCULPT) 0.65f else mat.roughness
+                val baseMetallic = if (shadingMode == ViewportShadingMode.CLAY_SCULPT) 0.05f else mat.metallic
+                val baseRoughness = if (shadingMode == ViewportShadingMode.CLAY_SCULPT) 0.65f else mat.roughness
                 val emitColor = Color(mat.emissionHex)
                 val emitStrength = mat.emissionStrength
 
@@ -355,39 +350,50 @@ fun Viewport3DCanvas(
                     val centroid = (p0 + p1 + p2) / 3f
                     val avgZ = (projDepths[f.v0] + projDepths[f.v1] + projDepths[f.v2]) / 3f
 
-                    // Flip normal toward viewer for double-sided lighting
+                    // Sample 3D UV & Texture if active!
+                    val (surfaceColor, roughnessDelta) = if (hasTex) {
+                        val loc0 = localVerts[f.v0]
+                        val loc1 = localVerts[f.v1]
+                        val loc2 = localVerts[f.v2]
+                        val localCentroid = (loc0 + loc1 + loc2) / 3f
+                        val localNormal = (loc1 - loc0).cross(loc2 - loc0).normalized()
+                        val (u, v) = TextureEngine.computeUV(localCentroid, localNormal, mat.uvMappingMode)
+                        TextureEngine.sampleTextureAndRoughness(u, v, mat)
+                    } else {
+                        fallbackBaseColor to 0f
+                    }
+
+                    val roughness = (baseRoughness + roughnessDelta).coerceIn(0.04f, 1.0f)
+                    val metallic = baseMetallic
+
                     val nDotVRaw = faceNormal.dot(viewDirWorld)
                     val orientedNormal = if (nDotVRaw < 0f) faceNormal * -1f else faceNormal
                     val nDotV = abs(nDotVRaw).coerceIn(0f, 1f)
 
-                    // PBR-inspired illumination
                     val nDotL = orientedNormal.dot(keyDir).coerceAtLeast(0f)
                     val hemiFactor = (orientedNormal.y * 0.5f + 0.5f).coerceIn(0f, 1f)
                     val ambR = groundColor.red * (1f - hemiFactor) + skyColor.red * hemiFactor
                     val ambG = groundColor.green * (1f - hemiFactor) + skyColor.green * hemiFactor
                     val ambB = groundColor.blue * (1f - hemiFactor) + skyColor.blue * hemiFactor
 
-                    // Blinn-Phong specular scaled by roughness & metallic
                     val nDotH = orientedNormal.dot(halfVec).coerceAtLeast(0f)
                     val shininess = (2f / (roughness * roughness + 0.04f)).coerceIn(4f, 128f)
                     val specIntensity = nDotH.pow(shininess) * (1.15f - roughness * 0.75f) * (0.25f + metallic * 0.95f)
-
-                    // Rim Fresnel
                     val rim = (1f - nDotV).pow(3.0f) * (0.28f + metallic * 0.35f)
 
                     val diffuseWeight = (1f - metallic * 0.45f)
-                    val litR = (baseColor.red * (0.28f + ambR * 0.38f + nDotL * keyColor.red * 0.85f * diffuseWeight) +
-                            (keyColor.red * 0.6f + baseColor.red * 0.4f) * specIntensity +
+                    val litR = (surfaceColor.red * (0.28f + ambR * 0.38f + nDotL * keyColor.red * 0.85f * diffuseWeight) +
+                            (keyColor.red * 0.6f + surfaceColor.red * 0.4f) * specIntensity +
                             rimColor.red * rim +
                             emitColor.red * emitStrength).coerceIn(0f, 1f)
 
-                    val litG = (baseColor.green * (0.28f + ambG * 0.38f + nDotL * keyColor.green * 0.85f * diffuseWeight) +
-                            (keyColor.green * 0.6f + baseColor.green * 0.4f) * specIntensity +
+                    val litG = (surfaceColor.green * (0.28f + ambG * 0.38f + nDotL * keyColor.green * 0.85f * diffuseWeight) +
+                            (keyColor.green * 0.6f + surfaceColor.green * 0.4f) * specIntensity +
                             rimColor.green * rim +
                             emitColor.green * emitStrength).coerceIn(0f, 1f)
 
-                    val litB = (baseColor.blue * (0.28f + ambB * 0.38f + nDotL * keyColor.blue * 0.85f * diffuseWeight) +
-                            (keyColor.blue * 0.6f + baseColor.blue * 0.4f) * specIntensity +
+                    val litB = (surfaceColor.blue * (0.28f + ambB * 0.38f + nDotL * keyColor.blue * 0.85f * diffuseWeight) +
+                            (keyColor.blue * 0.6f + surfaceColor.blue * 0.4f) * specIntensity +
                             rimColor.blue * rim +
                             emitColor.blue * emitStrength).coerceIn(0f, 1f)
 
@@ -399,13 +405,13 @@ fun Viewport3DCanvas(
 
                     val wireCol = when {
                         shadingMode == ViewportShadingMode.WIREFRAME ->
-                            if (isSelected) CyberCyan else baseColor.copy(alpha = 0.82f)
+                            if (isSelected) CyberCyan else surfaceColor.copy(alpha = 0.82f)
                         shadingMode == ViewportShadingMode.SHADED_WIRE || showWireframeOverlay ->
                             if (isSelected) CyberCyan.copy(alpha = 0.65f) else Color.Black.copy(alpha = 0.32f)
                         shadingMode == ViewportShadingMode.XRAY ->
-                            if (isSelected) CyberCyan.copy(alpha = 0.85f) else baseColor.copy(alpha = 0.55f)
+                            if (isSelected) CyberCyan.copy(alpha = 0.85f) else surfaceColor.copy(alpha = 0.55f)
                         isSelected ->
-                            CyberCyan.copy(alpha = 0.22f)
+                            CyberCyan.copy(alpha = 0.16f)
                         else -> null
                     }
 
@@ -435,10 +441,8 @@ fun Viewport3DCanvas(
 
             lastHitBoxes = hitBoxes
 
-            // 3. Painter's Algorithm Sort (back-to-front by camera Z)
             triangleBuffer.sortByDescending { it.depthZ }
 
-            // 4. Rasterize Sorted Triangles
             for (tri in triangleBuffer) {
                 reusablePath.reset()
                 reusablePath.moveTo(tri.x0, tri.y0)
@@ -470,7 +474,6 @@ fun Viewport3DCanvas(
                 }
             }
 
-            // 5. Optional Vertex Dots Cloud
             if (showVertices) {
                 for ((pt, sel) in vertexDotList) {
                     drawCircle(
@@ -481,7 +484,6 @@ fun Viewport3DCanvas(
                 }
             }
 
-            // 6. Draw 3D CAD Bounding Box & Millimeter Dimensions
             if (showDimensions && engineeringStats.objectCount > 0) {
                 drawCadBoundingBox(
                     minB = engineeringStats.minBounds,
@@ -492,7 +494,6 @@ fun Viewport3DCanvas(
                 )
             }
 
-            // 7. Draw Interactive 3D Transform Gizmo on Selected Object
             val selectedNode = nodes.firstOrNull { it.id == selectedNodeId && it.visible }
             if (selectedNode != null) {
                 drawTransformGizmo(
@@ -503,7 +504,6 @@ fun Viewport3DCanvas(
                 )
             }
 
-            // 8. Draw Top-Right 3D Orientation Compass Gizmo
             drawOrientationCompass(
                 cosY = cosY,
                 sinY = sinY,
@@ -608,13 +608,11 @@ private fun DrawScope.drawCadBoundingBox(
         color = CyberCyan
     )
 
-    // X width label
     val midX = projectWorld(Vec3((minB.x + maxB.x) * 0.5f, minB.y, maxB.z))?.first
     if (midX != null) {
         val txt = String.format(Locale.US, "W: %.1f mm", stats.widthMm)
         drawText(textMeasurer, txt, Offset(midX.x - 28f, midX.y + 6f), style = labelStyle)
     }
-    // Y height label
     val midY = projectWorld(Vec3(maxB.x, (minB.y + maxB.y) * 0.5f, maxB.z))?.first
     if (midY != null) {
         val txt = String.format(Locale.US, "H: %.1f mm", stats.heightMm)

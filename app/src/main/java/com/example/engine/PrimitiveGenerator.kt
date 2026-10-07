@@ -2,7 +2,9 @@ package com.example.engine
 
 import com.example.model.PbrMaterial
 import com.example.model.SceneNode3D
+import com.example.model.TextureType
 import com.example.model.TriangleFace
+import com.example.model.UvMappingMode
 import com.example.model.Vec3
 import java.util.UUID
 import kotlin.math.PI
@@ -48,21 +50,21 @@ object PrimitiveGenerator {
 
     val curatedMaterials: List<PbrMaterial> = listOf(
         PbrMaterial("Cyber Cyan Alloy", "آلیاژ سایبری فیروزه‌ای", 0xFF00E5FF, 0.75f, 0.20f, 0xFF00E5FF, 0.15f),
-        PbrMaterial("Brushed Titanium", "تیتانیوم برس‌خورده", 0xFF94A3B8, 0.88f, 0.25f),
+        PbrMaterial("Brushed Titanium", "تیتانیوم برس‌خورده", 0xFF94A3B8, 0.88f, 0.25f, textureType = TextureType.BRUSHED_METAL, textureSecondaryHex = 0xFF475569),
         PbrMaterial("24K Royal Gold", "طلای ۲۴ عیار براق", 0xFFF59E0B, 0.95f, 0.12f),
         PbrMaterial("Sculpt Terracotta", "خشت مجسمه‌سازی (Clay)", 0xFFD97757, 0.05f, 0.65f),
         PbrMaterial("Matte PLA White", "فیلامنت PLA سفید مات", 0xFFF1F5F9, 0.05f, 0.55f),
-        PbrMaterial("Carbon Stealth", "فیبر کربن مات", 0xFF1E293B, 0.45f, 0.35f),
+        PbrMaterial("Carbon Fiber Pro", "بافت فیبر کربن صنعتی", 0xFF334155, 0.55f, 0.28f, textureType = TextureType.CARBON_WEAVE, textureSecondaryHex = 0xFF090D16, textureScale = 5f),
         PbrMaterial("Crimson Anodized", "آلومینیوم آنودایز قرمز", 0xFFEF4444, 0.80f, 0.22f),
         PbrMaterial("Emerald Crystal", "کریستال زمرد نیمه‌شفاف", 0xFF10B981, 0.20f, 0.08f, 0xFF059669, 0.10f, 0.85f),
-        PbrMaterial("Neon Plasma Core", "پلاسمای نئون درخشان", 0xFF38BDF8, 0.10f, 0.10f, 0xFF00E5FF, 0.85f),
-        PbrMaterial("Amber Industrial", "کهربایی صنعتی", 0xFFFF9100, 0.65f, 0.28f),
-        PbrMaterial("Royal Amethyst", "آمتیست بنفش", 0xFFA855F7, 0.40f, 0.15f),
-        PbrMaterial("Copper Forge", "مس چکش‌کاری شده", 0xFFEA580C, 0.90f, 0.24f),
-        PbrMaterial("Cobalt Chrome", "کروم کبالت آیینه‌ای", 0xFF3B82F6, 0.92f, 0.10f),
-        PbrMaterial("SLA Grey Resin", "رزین خاکستری پرینت 3D", 0xFF64748B, 0.10f, 0.45f),
-        PbrMaterial("Cyber Magenta Glow", "مگنتای نئون سایبرپانک", 0xFFEC4899, 0.50f, 0.20f, 0xFFEC4899, 0.55f),
-        PbrMaterial("Glass Canopy", "شیشه کابین شفاف", 0xFF7DD3FC, 0.10f, 0.05f, 0xFF000000, 0f, 0.60f)
+        PbrMaterial("Cyber PCB Circuit", "مدار الکترونیکی سایبری", 0xFF00E5FF, 0.65f, 0.18f, 0xFF00E5FF, 0.25f, textureType = TextureType.CYBER_CIRCUIT, textureSecondaryHex = 0xFF091526, textureScale = 4f),
+        PbrMaterial("Luxury White Marble", "سنگ مرمر سفید رگه‌دار", 0xFFF8FAFC, 0.10f, 0.16f, textureType = TextureType.MARBLE_VEINS, textureSecondaryHex = 0xFF475569, textureScale = 3.5f),
+        PbrMaterial("Natural Walnut Wood", "چوب گردو طبیعی", 0xFFD97706, 0.05f, 0.48f, textureType = TextureType.WOOD_GRAIN, textureSecondaryHex = 0xFF78350F, textureScale = 4f),
+        PbrMaterial("Sci-Fi Hex Armor", "زره شش‌ضلعی لانه زنبوری", 0xFF38BDF8, 0.78f, 0.22f, textureType = TextureType.HEX_ARMOR, textureSecondaryHex = 0xFF0F172A, textureScale = 5f),
+        PbrMaterial("Weathered Industrial Rust", "فلز کهنه و زنگ‌زده", 0xFFEA580C, 0.45f, 0.62f, textureType = TextureType.RUST_WEATHERED, textureSecondaryHex = 0xFF334155, textureScale = 4.5f),
+        PbrMaterial("UV Checker Calibration", "شطرنجی استاندارد UV", 0xFF00E5FF, 0.20f, 0.35f, textureType = TextureType.CHECKER_UV, textureSecondaryHex = 0xFF1E293B, textureScale = 4f),
+        PbrMaterial("Architectural Red Brick", "آجرنمای معماری", 0xFFEF4444, 0.08f, 0.68f, textureType = TextureType.BRICK_TILES, textureSecondaryHex = 0xFFCBD5E1, textureScale = 4f),
+        PbrMaterial("Tactical Camo Armor", "استتار تاکتیکی", 0xFF22C55E, 0.15f, 0.55f, textureType = TextureType.CAMO_TACTICAL, textureSecondaryHex = 0xFF14532D, textureScale = 3.5f)
     )
 
     fun createPrimitive(
@@ -76,17 +78,17 @@ object PrimitiveGenerator {
     ): SceneNode3D {
         val (verts, faces) = when (type) {
             PrimitiveType3D.CUBE -> buildBoxGeometry(1.6f, 1.6f, 1.6f, segments = 2)
-            PrimitiveType3D.SPHERE -> buildSphereGeometry(radius = 1.0f, rings = 14, sectors = 20)
-            PrimitiveType3D.ICOSPHERE -> buildIcosphereGeometry(radius = 1.05f, subdivisions = 1)
-            PrimitiveType3D.CYLINDER -> buildCylinderGeometry(topRadius = 0.85f, bottomRadius = 0.85f, height = 1.8f, sectors = 22)
-            PrimitiveType3D.CONE -> buildCylinderGeometry(topRadius = 0.0f, bottomRadius = 1.0f, height = 1.9f, sectors = 22)
-            PrimitiveType3D.TORUS -> buildTorusGeometry(majorRadius = 0.95f, minorRadius = 0.34f, majorSegs = 22, minorSegs = 12)
+            PrimitiveType3D.SPHERE -> buildSphereGeometry(radius = 1.05f, rings = 16, sectors = 24)
+            PrimitiveType3D.ICOSPHERE -> buildIcosphereGeometry(radius = 1.1f, subdivisions = 1)
+            PrimitiveType3D.CYLINDER -> buildCylinderGeometry(topRadius = 0.85f, bottomRadius = 0.85f, height = 1.8f, sectors = 24)
+            PrimitiveType3D.CONE -> buildCylinderGeometry(topRadius = 0.0f, bottomRadius = 1.0f, height = 1.9f, sectors = 24)
+            PrimitiveType3D.TORUS -> buildTorusGeometry(majorRadius = 0.95f, minorRadius = 0.34f, majorSegs = 24, minorSegs = 14)
             PrimitiveType3D.PYRAMID -> buildCylinderGeometry(topRadius = 0.0f, bottomRadius = 1.15f, height = 1.8f, sectors = 4)
             PrimitiveType3D.HEX_PRISM -> buildCylinderGeometry(topRadius = 0.95f, bottomRadius = 0.95f, height = 1.4f, sectors = 6)
-            PrimitiveType3D.CAPSULE -> buildCapsuleGeometry(radius = 0.65f, cylinderHeight = 1.1f, sectors = 18, rings = 8)
-            PrimitiveType3D.GEAR -> buildGearGeometry(outerRadius = 1.15f, innerRadius = 0.88f, holeRadius = 0.38f, thickness = 0.48f, teeth = 12)
-            PrimitiveType3D.TWISTED_VASE -> buildTwistedVaseGeometry(height = 2.2f, layers = 16, radialSegs = 20)
-            PrimitiveType3D.DIAMOND_GEM -> buildDiamondGemGeometry(radius = 1.05f, height = 1.4f, facets = 12)
+            PrimitiveType3D.CAPSULE -> buildCapsuleGeometry(radius = 0.65f, cylinderHeight = 1.1f, sectors = 20, rings = 8)
+            PrimitiveType3D.GEAR -> buildGearGeometry(outerRadius = 1.2f, innerRadius = 0.92f, holeRadius = 0.40f, thickness = 0.50f, teeth = 14)
+            PrimitiveType3D.TWISTED_VASE -> buildTwistedVaseGeometry(height = 2.2f, layers = 18, radialSegs = 22)
+            PrimitiveType3D.DIAMOND_GEM -> buildDiamondGemGeometry(radius = 1.1f, height = 1.45f, facets = 14)
         }
         val mat = materialOverride ?: PbrMaterial(
             name = type.titleEn,
@@ -109,9 +111,6 @@ object PrimitiveGenerator {
         )
     }
 
-    /**
-     * Subdivided Box geometry (closed manifold mesh).
-     */
     fun buildBoxGeometry(w: Float, h: Float, d: Float, segments: Int = 2): Pair<List<Vec3>, List<TriangleFace>> {
         val hx = w / 2f
         val hy = h / 2f
@@ -142,25 +141,16 @@ object PrimitiveGenerator {
             }
         }
 
-        // Front (+Z)
         addGridFace(Vec3(-hx, -hy, hz), Vec3(w, 0f, 0f), Vec3(0f, h, 0f))
-        // Back (-Z)
         addGridFace(Vec3(hx, -hy, -hz), Vec3(-w, 0f, 0f), Vec3(0f, h, 0f))
-        // Right (+X)
         addGridFace(Vec3(hx, -hy, hz), Vec3(0f, 0f, -d), Vec3(0f, h, 0f))
-        // Left (-X)
         addGridFace(Vec3(-hx, -hy, -hz), Vec3(0f, 0f, d), Vec3(0f, h, 0f))
-        // Top (+Y)
         addGridFace(Vec3(-hx, hy, hz), Vec3(w, 0f, 0f), Vec3(0f, 0f, -d))
-        // Bottom (-Y)
         addGridFace(Vec3(-hx, -hy, -hz), Vec3(w, 0f, 0f), Vec3(0f, 0f, d))
 
         return MeshModifiers.weldCloseVertices(vertices, faces, 1e-4f)
     }
 
-    /**
-     * Closed UV Sphere geometry.
-     */
     fun buildSphereGeometry(radius: Float, rings: Int, sectors: Int): Pair<List<Vec3>, List<TriangleFace>> {
         val vertices = mutableListOf<Vec3>()
         val faces = mutableListOf<TriangleFace>()
@@ -187,23 +177,16 @@ object PrimitiveGenerator {
                 val i1 = r * sCount + nextS
                 val i2 = (r + 1) * sCount + s
                 val i3 = (r + 1) * sCount + nextS
-                if (r != 0) {
-                    faces.add(TriangleFace(i0, i1, i2))
-                }
-                if (r != rCount - 1) {
-                    faces.add(TriangleFace(i1, i3, i2))
-                }
+                if (r != 0) faces.add(TriangleFace(i0, i1, i2))
+                if (r != rCount - 1) faces.add(TriangleFace(i1, i3, i2))
             }
         }
         return MeshModifiers.weldCloseVertices(vertices, faces, 1e-4f)
     }
 
-    /**
-     * Geodesic Icosphere built from golden-ratio icosahedron + midpoint subdivision.
-     */
     fun buildIcosphereGeometry(radius: Float, subdivisions: Int = 1): Pair<List<Vec3>, List<TriangleFace>> {
         val t = ((1.0 + sqrt(5.0)) / 2.0).toFloat()
-        var verts = listOf(
+        val verts = listOf(
             Vec3(-1f, t, 0f), Vec3(1f, t, 0f), Vec3(-1f, -t, 0f), Vec3(1f, -t, 0f),
             Vec3(0f, -1f, t), Vec3(0f, 1f, t), Vec3(0f, -1f, -t), Vec3(0f, 1f, -t),
             Vec3(t, 0f, -1f), Vec3(t, 0f, 1f), Vec3(-t, 0f, -1f), Vec3(-t, 0f, 1f)
@@ -243,9 +226,6 @@ object PrimitiveGenerator {
         return verts to faces
     }
 
-    /**
-     * Closed Cylinder / Cone / Prism geometry.
-     */
     fun buildCylinderGeometry(
         topRadius: Float,
         bottomRadius: Float,
@@ -257,12 +237,10 @@ object PrimitiveGenerator {
         val halfH = height / 2f
         val sCount = sectors.coerceAtLeast(3)
 
-        // Bottom ring: 0 until sCount
         for (i in 0 until sCount) {
             val a = 2.0 * PI * i / sCount
             vertices.add(Vec3((cos(a) * bottomRadius).toFloat(), -halfH, (sin(a) * bottomRadius).toFloat()))
         }
-        // Top ring: sCount until 2*sCount
         for (i in 0 until sCount) {
             val a = 2.0 * PI * i / sCount
             vertices.add(Vec3((cos(a) * topRadius).toFloat(), halfH, (sin(a) * topRadius).toFloat()))
@@ -279,25 +257,15 @@ object PrimitiveGenerator {
             val t0 = sCount + i
             val t1 = sCount + next
 
-            // Side quads
             faces.add(TriangleFace(b0, t0, b1))
             faces.add(TriangleFace(b1, t0, t1))
 
-            // Bottom cap
-            if (bottomRadius > 1e-4f) {
-                faces.add(TriangleFace(bottomCenterIdx, b0, b1))
-            }
-            // Top cap
-            if (topRadius > 1e-4f) {
-                faces.add(TriangleFace(topCenterIdx, t1, t0))
-            }
+            if (bottomRadius > 1e-4f) faces.add(TriangleFace(bottomCenterIdx, b0, b1))
+            if (topRadius > 1e-4f) faces.add(TriangleFace(topCenterIdx, t1, t0))
         }
         return MeshModifiers.weldCloseVertices(vertices, faces, 1e-4f)
     }
 
-    /**
-     * Closed Torus ring geometry.
-     */
     fun buildTorusGeometry(
         majorRadius: Float,
         minorRadius: Float,
@@ -338,9 +306,6 @@ object PrimitiveGenerator {
         return vertices to faces
     }
 
-    /**
-     * Closed Capsule geometry.
-     */
     fun buildCapsuleGeometry(
         radius: Float,
         cylinderHeight: Float,
@@ -357,9 +322,6 @@ object PrimitiveGenerator {
         return stretched to faces
     }
 
-    /**
-     * Precision Mechanical Spur Gear with center bore and involute-style teeth.
-     */
     fun buildGearGeometry(
         outerRadius: Float,
         innerRadius: Float,
@@ -379,8 +341,6 @@ object PrimitiveGenerator {
             val cosA = cos(angle).toFloat()
             val sinA = sin(angle).toFloat()
 
-            // 4 vertices per radial slice:
-            // 0: top inner, 1: top outer, 2: bottom outer, 3: bottom inner
             vertices.add(Vec3(cosA * holeRadius, halfT, sinA * holeRadius))
             vertices.add(Vec3(cosA * rOuter, halfT, sinA * rOuter))
             vertices.add(Vec3(cosA * rOuter, -halfT, sinA * rOuter))
@@ -392,25 +352,18 @@ object PrimitiveGenerator {
             val b0 = i * 4
             val b1 = next * 4
 
-            // Top face
             faces.add(TriangleFace(b0 + 0, b1 + 1, b0 + 1))
             faces.add(TriangleFace(b0 + 0, b1 + 0, b1 + 1))
-            // Outer tooth rim
             faces.add(TriangleFace(b0 + 1, b1 + 2, b0 + 2))
             faces.add(TriangleFace(b0 + 1, b1 + 1, b1 + 2))
-            // Bottom face
             faces.add(TriangleFace(b0 + 2, b1 + 3, b0 + 3))
             faces.add(TriangleFace(b0 + 2, b1 + 2, b1 + 3))
-            // Inner bore wall
             faces.add(TriangleFace(b0 + 3, b1 + 0, b0 + 0))
             faces.add(TriangleFace(b0 + 3, b1 + 3, b1 + 0))
         }
         return vertices to faces
     }
 
-    /**
-     * Sculptural Twisted Ribbed Vase designed for 3D printing.
-     */
     fun buildTwistedVaseGeometry(
         height: Float,
         layers: Int,
@@ -460,9 +413,6 @@ object PrimitiveGenerator {
         return vertices to faces
     }
 
-    /**
-     * Multi-faceted Brilliant Cut Diamond Gem.
-     */
     fun buildDiamondGemGeometry(
         radius: Float,
         height: Float,
@@ -477,12 +427,10 @@ object PrimitiveGenerator {
         val culetY = -height * 0.52f
         val tableR = radius * 0.56f
 
-        // 0..fCount-1: Girdle ring
         for (i in 0 until fCount) {
             val a = 2.0 * PI * i / fCount
             vertices.add(Vec3((cos(a) * radius).toFloat(), girdleY, (sin(a) * radius).toFloat()))
         }
-        // fCount..2*fCount-1: Crown table ring (half-step rotated for diamond facets)
         for (i in 0 until fCount) {
             val a = 2.0 * PI * (i + 0.5) / fCount
             vertices.add(Vec3((cos(a) * tableR).toFloat(), tableY, (sin(a) * tableR).toFloat()))
@@ -499,568 +447,318 @@ object PrimitiveGenerator {
             val t0 = fCount + i
             val t1 = fCount + next
 
-            // Crown facets
             faces.add(TriangleFace(g0, t0, g1))
             faces.add(TriangleFace(g1, t0, t1))
-            // Table top
             faces.add(TriangleFace(tableCenterIdx, t1, t0))
-            // Pavilion bottom cone facets
             faces.add(TriangleFace(culetIdx, g0, g1))
         }
         return vertices to faces
     }
 
     /**
-     * Returns the 8 complete, multi-part Ready-Made 3D Models (مدل‌های آماده حرفه‌ای).
+     * Helper to build continuous revolved/lathe 3D models from a profile of (y, radius, waveAmp, waveFreq, zStretch)
+     * so Ready-Made Models are clean, single-piece sculpted 3D meshes instead of scattered primitive blocks!
+     */
+    private fun buildLatheProfileGeometry(
+        rings: List<Triple<Float, Float, Float>>, // (y, radius, ribAmplitude)
+        radialSegs: Int = 24,
+        ribFreq: Int = 6,
+        scaleX: Float = 1f,
+        scaleZ: Float = 1f
+    ): Pair<List<Vec3>, List<TriangleFace>> {
+        val vertices = mutableListOf<Vec3>()
+        val faces = mutableListOf<TriangleFace>()
+
+        for ((y, rBase, ribAmp) in rings) {
+            for (s in 0 until radialSegs) {
+                val angle = (2.0 * PI * s / radialSegs).toFloat()
+                val mod = 1f + ribAmp * cos(angle * ribFreq)
+                val r = (rBase * mod).coerceAtLeast(0.02f)
+                vertices.add(Vec3(cos(angle) * r * scaleX, y, sin(angle) * r * scaleZ))
+            }
+        }
+
+        val bottomCenter = vertices.size
+        vertices.add(Vec3(0f, rings.first().first, 0f))
+        val topCenter = vertices.size
+        vertices.add(Vec3(0f, rings.last().first, 0f))
+
+        for (ly in 0 until rings.size - 1) {
+            for (s in 0 until radialSegs) {
+                val nextS = (s + 1) % radialSegs
+                val i0 = ly * radialSegs + s
+                val i1 = ly * radialSegs + nextS
+                val i2 = (ly + 1) * radialSegs + s
+                val i3 = (ly + 1) * radialSegs + nextS
+                faces.add(TriangleFace(i0, i2, i1))
+                faces.add(TriangleFace(i1, i2, i3))
+            }
+        }
+
+        for (s in 0 until radialSegs) {
+            val nextS = (s + 1) % radialSegs
+            faces.add(TriangleFace(bottomCenter, s, nextS))
+            val topBase = (rings.size - 1) * radialSegs
+            faces.add(TriangleFace(topCenter, topBase + nextS, topBase + s))
+        }
+        return vertices to faces
+    }
+
+    /**
+     * Returns 8 Clean, Unified, Single-Mesh Ready-Made 3D Models (each with rich procedural textures).
      */
     fun getReadyModelPresets(): List<ReadyModelPreset> = listOf(
-        ReadyModelPreset(
-            id = "cyber_mecha_bot",
-            titleFa = "روبات نگهبان سایبری (Cyber Mecha)",
-            titleEn = "Cyber Guardian Mecha",
-            subtitleFa = "مدل چندبخشی شامل کلاهخود، ویزور نئونی، زره سینه، راکتور انرژی، شانه‌ها و بازوهای مکانیکی",
-            badgeFa = "۹ قطعه مجزا • PBR",
-            accentHex = 0xFF00E5FF,
-            partsCount = 9,
-            generator = ::buildCyberMechaPreset
-        ),
-        ReadyModelPreset(
-            id = "concept_supercar",
-            titleFa = "خودرو مفهومی اسپرت (Concept Supercar)",
-            titleEn = "Apex Cyber Concept Car",
-            subtitleFa = "شاسی آیرودینامیک، کابین شیشه‌ای، اسپویلر عقب، دیفیوزر و ۴ چرخ اسپرت",
-            badgeFa = "۸ قطعه مجزا • خودرو",
-            accentHex = 0xFFEF4444,
-            partsCount = 8,
-            generator = ::buildConceptCarPreset
-        ),
-        ReadyModelPreset(
-            id = "planetary_gearbox",
-            titleFa = "مکانیزم چرخ‌دنده سیاره‌ای (مناسب پرینت 3D)",
-            titleEn = "Planetary Gearset (Print Ready)",
-            subtitleFa = "مجموعه مهندسی دقیق شامل چرخ‌دنده خورشیدی، ۳ دنده سیاره‌ای و محور مرکزی آماده خروجی STL",
-            badgeFa = "۵ قطعه • Print Ready",
-            accentHex = 0xFFF59E0B,
-            partsCount = 5,
-            generator = ::buildPlanetaryGearPreset
-        ),
-        ReadyModelPreset(
-            id = "starship_explorer",
-            titleFa = "فضاپیمای اکتشافی (Starlight Cruiser)",
-            titleEn = "Deep Space Cruiser",
-            subtitleFa = "بدنه اصلی فضاپیما، بال‌های دلتا، ۲ موتور وارپ نئونی و برج فرماندهی",
-            badgeFa = "۶ قطعه • Sci-Fi",
-            accentHex = 0xFF38BDF8,
-            partsCount = 6,
-            generator = ::buildStarshipPreset
-        ),
-        ReadyModelPreset(
-            id = "parametric_tower",
-            titleFa = "برج معماری پارامتریک مدرن",
-            titleEn = "Parametric Twisted Tower",
-            subtitleFa = "سازه‌ معماری پیشرفته با پایه پودیوم، برج پیچشی شیشه‌ای و تاج مناره",
-            badgeFa = "۴ قطعه • معماری CAD",
-            accentHex = 0xFF10B981,
-            partsCount = 4,
-            generator = ::buildParametricTowerPreset
-        ),
-        ReadyModelPreset(
-            id = "royal_diamond_ring",
-            titleFa = "انگشتر طلا و تک‌نگین الماس",
-            titleEn = "Royal Diamond Solitaire Ring",
-            subtitleFa = "حلقه طلای ۲۴ عیار به همراه پایه جواهر و نگین الماس تراش برلیان",
-            badgeFa = "۶ قطعه • جواهرسازی",
-            accentHex = 0xFFFBBF24,
-            partsCount = 6,
-            generator = ::buildDiamondRingPreset
-        ),
-        ReadyModelPreset(
-            id = "armored_knight",
-            titleFa = "کاراکتر شوالیه زره‌پوش (Game Asset)",
-            titleEn = "Stylized Armored Knight",
-            subtitleFa = "کاراکتر آماده بازی شامل کلاهخود، زره، سپر دفاعی و شمشیر فولادی",
-            badgeFa = "۷ قطعه • Game Ready",
-            accentHex = 0xFFA855F7,
-            partsCount = 7,
-            generator = ::buildKnightPreset
-        ),
         ReadyModelPreset(
             id = "sculpt_twisted_vase",
             titleFa = "گلدان هنری مارپیچ (ویژه پرینت سه‌بعدی)",
             titleEn = "Sculptural Ribbed Vase",
-            subtitleFa = "مش یکپارچه و آب‌بند (Manifold) طراحی‌شده اختصاصی برای اسلایسرهای پرینتر سه‌بعدی",
-            badgeFa = "تک‌قطعه • STL Manifold",
+            subtitleFa = "مش یکپارچه و آب‌بند (Manifold) با تکسچر سنگ مرمر آماده اسلایسر پرینتر سه‌بعدی",
+            badgeFa = "مش یکپارچه • STL Ready",
             accentHex = 0xFFF472B6,
-            partsCount = 2,
+            partsCount = 1,
             generator = ::buildDesignerVasePreset
+        ),
+        ReadyModelPreset(
+            id = "planetary_gear_pro",
+            titleFa = "چرخ‌دنده صنعتی دقیق (Spur Gear)",
+            titleEn = "Precision Mechanical Gear",
+            subtitleFa = "چرخ‌دنده مهندسی ۱۴ دندانه یکپارچه با تکسچر تیتانیوم برس‌خورده",
+            badgeFa = "مهندسی CAD • تک‌قطعه",
+            accentHex = 0xFFF59E0B,
+            partsCount = 1,
+            generator = ::buildPrecisionGearPreset
+        ),
+        ReadyModelPreset(
+            id = "cyber_helmet_bust",
+            titleFa = "کلاهخود سایبری یکپارچه (Cyber Helmet)",
+            titleEn = "Sci-Fi Cyber Helmet",
+            subtitleFa = "مدل سه‌بعدی یکپارچه کلاهخود آینده‌نگرانه با بافت زره شش‌ضلعی (Hex Armor)",
+            badgeFa = "تکسچر Hex • Sci-Fi",
+            accentHex = 0xFF00E5FF,
+            partsCount = 1,
+            generator = ::buildCyberHelmetPreset
+        ),
+        ReadyModelPreset(
+            id = "royal_chalice_trophy",
+            titleFa = "جام قهرمانی سلطنتی (Royal Trophy Cup)",
+            titleEn = "Royal Championship Chalice",
+            subtitleFa = "مدل تراش‌خورده یکپارچه جام طلایی ۲۴ عیار مناسب پرینت سه‌بعدی و دکوراسیون",
+            badgeFa = "مش یکپارچه • طلایی",
+            accentHex = 0xFFFBBF24,
+            partsCount = 1,
+            generator = ::buildRoyalTrophyPreset
+        ),
+        ReadyModelPreset(
+            id = "parametric_tower_single",
+            titleFa = "برج معماری پارامتریک پیچشی",
+            titleEn = "Twisted Parametric Skyscraper",
+            subtitleFa = "سازه‌ معماری مدرن یکپارچه با چرخش ۶۵ درجه‌ای و تکسچر نما",
+            badgeFa = "معماری • Parametric",
+            accentHex = 0xFF10B981,
+            partsCount = 1,
+            generator = ::buildParametricTowerPreset
+        ),
+        ReadyModelPreset(
+            id = "deep_space_rocket",
+            titleFa = "موشک فضایی آیرودینامیک (Space Rocket)",
+            titleEn = "Aerospace Booster Rocket",
+            subtitleFa = "بدنه یکپارچه موشک فضایی شامل دماغه مخروطی، بدنه، بالک‌ها و نازل پیشران",
+            badgeFa = "هوافضا • تک‌قطعه",
+            accentHex = 0xFF38BDF8,
+            partsCount = 1,
+            generator = ::buildRocketShipPreset
+        ),
+        ReadyModelPreset(
+            id = "brilliant_crystal_gem",
+            titleFa = "جواهر الماس تراش برلیان",
+            titleEn = "Brilliant Cut Diamond Gem",
+            subtitleFa = "نگین جواهر چندوجهی با ضریب بازتاب بالا و هندسه دقیق جواهرسازی",
+            badgeFa = "جواهرسازی • Faceted",
+            accentHex = 0xFF67E8F9,
+            partsCount = 1,
+            generator = ::buildDiamondGemPreset
+        ),
+        ReadyModelPreset(
+            id = "chess_king_piece",
+            titleFa = "مهره شاه شطرنج کلاسیک (Chess King)",
+            titleEn = "Grandmaster Chess King",
+            subtitleFa = "مهره شطرنج تراش‌خورده با بافت چوب گردو طبیعی آماده پرینت سه‌بعدی",
+            badgeFa = "تکسچر چوب • پرینت 3D",
+            accentHex = 0xFFD97706,
+            partsCount = 1,
+            generator = ::buildChessKingPreset
         )
     )
 
-    fun buildCyberMechaPreset(): List<SceneNode3D> {
-        val armorMat = curatedMaterials[1] // Brushed Titanium
-        val cyanGlow = curatedMaterials[8] // Neon Plasma
-        val amberMat = curatedMaterials[9] // Amber Industrial
-        val darkCarbon = curatedMaterials[5]
-
+    fun buildDesignerVasePreset(): List<SceneNode3D> {
         return listOf(
             createPrimitive(
-                PrimitiveType3D.HEX_PRISM,
-                position = Vec3(0f, 0.35f, 0f),
-                scale = Vec3(1.1f, 0.95f, 0.72f),
-                materialOverride = armorMat,
-                customNameFa = "زره سینه (Torso)",
-                customNameEn = "Mecha Torso"
-            ),
-            createPrimitive(
-                PrimitiveType3D.SPHERE,
-                position = Vec3(0f, 0.45f, 0.58f),
-                scale = Vec3(0.32f, 0.32f, 0.18f),
-                materialOverride = cyanGlow,
-                customNameFa = "راکتور انرژی سینه",
-                customNameEn = "Arc Core Reactor"
-            ),
-            createPrimitive(
-                PrimitiveType3D.ICOSPHERE,
-                position = Vec3(0f, 1.55f, 0f),
-                scale = Vec3(0.55f, 0.52f, 0.58f),
-                materialOverride = armorMat,
-                customNameFa = "کلاهخود روبات (Head)",
-                customNameEn = "Mecha Head"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CUBE,
-                position = Vec3(0f, 1.58f, 0.44f),
-                scale = Vec3(0.52f, 0.14f, 0.22f),
-                materialOverride = cyanGlow,
-                customNameFa = "ویزور نئون چشم",
-                customNameEn = "Holo Visor"
-            ),
-            createPrimitive(
-                PrimitiveType3D.SPHERE,
-                position = Vec3(-1.25f, 0.88f, 0f),
-                scale = Vec3(0.45f, 0.42f, 0.48f),
-                materialOverride = amberMat,
-                customNameFa = "زره شانه چپ",
-                customNameEn = "Left Pauldron"
-            ),
-            createPrimitive(
-                PrimitiveType3D.SPHERE,
-                position = Vec3(1.25f, 0.88f, 0f),
-                scale = Vec3(0.45f, 0.42f, 0.48f),
-                materialOverride = amberMat,
-                customNameFa = "زره شانه راست",
-                customNameEn = "Right Pauldron"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CAPSULE,
-                position = Vec3(-1.35f, 0.05f, 0.15f),
-                rotation = Vec3(-18f, 0f, 8f),
-                scale = Vec3(0.36f, 0.58f, 0.36f),
-                materialOverride = darkCarbon,
-                customNameFa = "بازوی مکانیکی چپ",
-                customNameEn = "Left Mecha Arm"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CAPSULE,
-                position = Vec3(1.35f, 0.05f, 0.15f),
-                rotation = Vec3(-18f, 0f, -8f),
-                scale = Vec3(0.36f, 0.58f, 0.36f),
-                materialOverride = darkCarbon,
-                customNameFa = "بازوی مکانیکی راست",
-                customNameEn = "Right Mecha Arm"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0f, -0.82f, 0f),
-                scale = Vec3(0.75f, 0.62f, 0.62f),
-                materialOverride = darkCarbon,
-                customNameFa = "پایه و پیشران حرکتی",
-                customNameEn = "Base Thruster"
+                PrimitiveType3D.TWISTED_VASE,
+                scale = Vec3(1.15f, 1.1f, 1.15f),
+                materialOverride = curatedMaterials[9], // Luxury White Marble
+                customNameFa = "گلدان پارامتریک مرمر",
+                customNameEn = "Marble Ribbed Vase"
             )
         )
     }
 
-    fun buildConceptCarPreset(): List<SceneNode3D> {
-        val redBody = curatedMaterials[6] // Crimson Anodized
-        val canopyGlass = curatedMaterials[15]
-        val carbonMat = curatedMaterials[5]
-        val neonLight = curatedMaterials[8]
-
+    fun buildPrecisionGearPreset(): List<SceneNode3D> {
         return listOf(
             createPrimitive(
-                PrimitiveType3D.CUBE,
-                position = Vec3(0f, -0.25f, 0f),
-                scale = Vec3(1.15f, 0.34f, 2.25f),
-                materialOverride = redBody,
-                customNameFa = "شاسی اصلی خودرو",
-                customNameEn = "Main Chassis"
-            ),
-            createPrimitive(
-                PrimitiveType3D.SPHERE,
-                position = Vec3(0f, 0.12f, -0.15f),
-                scale = Vec3(0.76f, 0.36f, 1.15f),
-                materialOverride = canopyGlass,
-                customNameFa = "کابین شیشه‌ای (Canopy)",
-                customNameEn = "Glass Canopy"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CUBE,
-                position = Vec3(0f, 0.25f, -1.65f),
-                scale = Vec3(1.22f, 0.06f, 0.28f),
-                materialOverride = carbonMat,
-                customNameFa = "اسپویلر عقب (GT Wing)",
-                customNameEn = "Rear GT Spoiler"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CUBE,
-                position = Vec3(0f, -0.22f, 1.82f),
-                scale = Vec3(1.02f, 0.08f, 0.12f),
-                materialOverride = neonLight,
-                customNameFa = "چراغ نئون جلو",
-                customNameEn = "LED Headlight Bar"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(-0.98f, -0.38f, 1.12f),
-                rotation = Vec3(0f, 0f, 90f),
-                scale = Vec3(0.45f, 0.18f, 0.45f),
-                materialOverride = carbonMat,
-                customNameFa = "چرخ جلو چپ",
-                customNameEn = "Wheel Front-L"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0.98f, -0.38f, 1.12f),
-                rotation = Vec3(0f, 0f, 90f),
-                scale = Vec3(0.45f, 0.18f, 0.45f),
-                materialOverride = carbonMat,
-                customNameFa = "چرخ جلو راست",
-                customNameEn = "Wheel Front-R"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(-0.98f, -0.35f, -1.15f),
-                rotation = Vec3(0f, 0f, 90f),
-                scale = Vec3(0.50f, 0.20f, 0.50f),
-                materialOverride = carbonMat,
-                customNameFa = "چرخ عقب چپ",
-                customNameEn = "Wheel Rear-L"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0.98f, -0.35f, -1.15f),
-                rotation = Vec3(0f, 0f, 90f),
-                scale = Vec3(0.50f, 0.20f, 0.50f),
-                materialOverride = carbonMat,
-                customNameFa = "چرخ عقب راست",
-                customNameEn = "Wheel Rear-R"
+                PrimitiveType3D.GEAR,
+                rotation = Vec3(25f, 0f, 0f),
+                scale = Vec3(1.25f, 1.25f, 1.25f),
+                materialOverride = curatedMaterials[1], // Brushed Titanium
+                customNameFa = "چرخ‌دنده صنعتی تیتانیوم",
+                customNameEn = "Titanium Spur Gear"
             )
         )
     }
 
-    fun buildPlanetaryGearPreset(): List<SceneNode3D> {
-        val goldMat = curatedMaterials[2]
-        val titaniumMat = curatedMaterials[1]
-        val copperMat = curatedMaterials[11]
-
+    fun buildCyberHelmetPreset(): List<SceneNode3D> {
+        val (verts, faces) = buildLatheProfileGeometry(
+            rings = listOf(
+                Triple(-1.05f, 0.58f, 0.05f),
+                Triple(-0.75f, 0.68f, 0.08f),
+                Triple(-0.35f, 0.92f, 0.12f),
+                Triple(0.05f, 1.02f, 0.10f),
+                Triple(0.45f, 0.96f, 0.06f),
+                Triple(0.82f, 0.78f, 0.04f),
+                Triple(1.08f, 0.42f, 0.02f)
+            ),
+            radialSegs = 24,
+            ribFreq = 4,
+            scaleX = 0.88f,
+            scaleZ = 1.12f
+        )
         return listOf(
-            createPrimitive(
-                PrimitiveType3D.GEAR,
-                position = Vec3(0f, 0f, 0f),
-                scale = Vec3(0.85f, 1.0f, 0.85f),
-                materialOverride = goldMat,
-                customNameFa = "چرخ‌دنده خورشیدی مرکزی",
-                customNameEn = "Center Sun Gear"
-            ),
-            createPrimitive(
-                PrimitiveType3D.GEAR,
-                position = Vec3(1.62f, 0f, 0f),
-                rotation = Vec3(0f, 15f, 0f),
-                scale = Vec3(0.62f, 1.0f, 0.62f),
-                materialOverride = titaniumMat,
-                customNameFa = "چرخ‌دنده سیاره‌ای ۱",
-                customNameEn = "Planet Gear 1"
-            ),
-            createPrimitive(
-                PrimitiveType3D.GEAR,
-                position = Vec3(-0.81f, 0f, 1.40f),
-                rotation = Vec3(0f, 15f, 0f),
-                scale = Vec3(0.62f, 1.0f, 0.62f),
-                materialOverride = titaniumMat,
-                customNameFa = "چرخ‌دنده سیاره‌ای ۲",
-                customNameEn = "Planet Gear 2"
-            ),
-            createPrimitive(
-                PrimitiveType3D.GEAR,
-                position = Vec3(-0.81f, 0f, -1.40f),
-                rotation = Vec3(0f, 15f, 0f),
-                scale = Vec3(0.62f, 1.0f, 0.62f),
-                materialOverride = titaniumMat,
-                customNameFa = "چرخ‌دنده سیاره‌ای ۳",
-                customNameEn = "Planet Gear 3"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0f, 0f, 0f),
-                scale = Vec3(0.32f, 0.9f, 0.32f),
-                materialOverride = copperMat,
-                customNameFa = "شفت انتقال قدرت مرکزی",
-                customNameEn = "Drive Shaft"
+            SceneNode3D(
+                id = newId("cyber_helmet"),
+                name = "Cyber Hex Helmet",
+                nameFa = "کلاهخود سایبری Hex",
+                typeTag = "Sculpt",
+                vertices = verts,
+                faces = faces,
+                material = curatedMaterials[11] // Sci-Fi Hex Armor
             )
         )
     }
 
-    fun buildStarshipPreset(): List<SceneNode3D> {
-        val hullMat = curatedMaterials[1]
-        val cyanCore = curatedMaterials[8]
-        val cobaltMat = curatedMaterials[12]
-
+    fun buildRoyalTrophyPreset(): List<SceneNode3D> {
+        val (verts, faces) = buildLatheProfileGeometry(
+            rings = listOf(
+                Triple(-1.15f, 0.78f, 0.0f),
+                Triple(-0.95f, 0.72f, 0.0f),
+                Triple(-0.80f, 0.26f, 0.04f),
+                Triple(-0.35f, 0.18f, 0.06f),
+                Triple(0.05f, 0.32f, 0.04f),
+                Triple(0.45f, 0.78f, 0.05f),
+                Triple(0.85f, 0.96f, 0.05f),
+                Triple(1.15f, 0.88f, 0.02f)
+            ),
+            radialSegs = 28,
+            ribFreq = 8
+        )
         return listOf(
-            createPrimitive(
-                PrimitiveType3D.CONE,
-                position = Vec3(0f, 0f, 0.2f),
-                rotation = Vec3(90f, 0f, 0f),
-                scale = Vec3(0.68f, 1.65f, 0.38f),
-                materialOverride = hullMat,
-                customNameFa = "بدنه اصلی فضاپیما",
-                customNameEn = "Main Hull Fuselage"
-            ),
-            createPrimitive(
-                PrimitiveType3D.SPHERE,
-                position = Vec3(0f, 0.22f, 0.35f),
-                scale = Vec3(0.34f, 0.22f, 0.65f),
-                materialOverride = cyanCore,
-                customNameFa = "گنبد فرماندهی",
-                customNameEn = "Command Bridge"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CUBE,
-                position = Vec3(0f, -0.04f, -0.25f),
-                scale = Vec3(1.85f, 0.06f, 0.72f),
-                materialOverride = cobaltMat,
-                customNameFa = "بال‌های دلتا",
-                customNameEn = "Delta Wings"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(-1.18f, 0.08f, -0.45f),
-                rotation = Vec3(90f, 0f, 0f),
-                scale = Vec3(0.22f, 0.78f, 0.22f),
-                materialOverride = hullMat,
-                customNameFa = "موتور وارپ چپ",
-                customNameEn = "Left Warp Nacelle"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(1.18f, 0.08f, -0.45f),
-                rotation = Vec3(90f, 0f, 0f),
-                scale = Vec3(0.22f, 0.78f, 0.22f),
-                materialOverride = hullMat,
-                customNameFa = "موتور وارپ راست",
-                customNameEn = "Right Warp Nacelle"
-            ),
-            createPrimitive(
-                PrimitiveType3D.TORUS,
-                position = Vec3(0f, 0f, -1.25f),
-                rotation = Vec3(90f, 0f, 0f),
-                scale = Vec3(0.45f, 0.45f, 0.45f),
-                materialOverride = cyanCore,
-                customNameFa = "حلقه پیشران یونی",
-                customNameEn = "Ion Thruster Ring"
+            SceneNode3D(
+                id = newId("trophy_cup"),
+                name = "Royal Trophy Chalice",
+                nameFa = "جام قهرمانی طلایی",
+                typeTag = "Lathe",
+                vertices = verts,
+                faces = faces,
+                material = curatedMaterials[2] // 24K Gold
             )
         )
     }
 
     fun buildParametricTowerPreset(): List<SceneNode3D> {
-        val emeraldGlass = curatedMaterials[7]
-        val titanium = curatedMaterials[1]
-        val cyanGlow = curatedMaterials[0]
-
-        val baseTower = createPrimitive(
+        val base = createPrimitive(
             PrimitiveType3D.CUBE,
-            position = Vec3(0f, 0.25f, 0f),
-            scale = Vec3(0.72f, 1.65f, 0.72f),
-            materialOverride = emeraldGlass,
-            customNameFa = "بدنه برج پیچشی",
-            customNameEn = "Twisted Glass Tower"
+            scale = Vec3(0.85f, 1.45f, 0.85f),
+            materialOverride = curatedMaterials[8], // Cyber PCB Circuit
+            customNameFa = "برج معماری پیچشی",
+            customNameEn = "Twisted Parametric Tower"
         )
-        val twistedTower = MeshModifiers.twistMesh(MeshModifiers.subdivideMesh(baseTower, smooth = false), 65f, Axis.Y)
+        val subdivided = MeshModifiers.subdivideMesh(base, smooth = false)
+        val twisted = MeshModifiers.taperMesh(MeshModifiers.twistMesh(subdivided, 65f, Axis.Y), 0.68f)
+        return listOf(twisted)
+    }
 
+    fun buildRocketShipPreset(): List<SceneNode3D> {
+        val (verts, faces) = buildLatheProfileGeometry(
+            rings = listOf(
+                Triple(-1.20f, 0.56f, 0.0f),
+                Triple(-0.92f, 0.36f, 0.0f),
+                Triple(-0.65f, 0.82f, 0.28f), // 4 aerodynamic fins
+                Triple(-0.20f, 0.58f, 0.04f),
+                Triple(0.35f, 0.56f, 0.02f),
+                Triple(0.82f, 0.38f, 0.0f),
+                Triple(1.18f, 0.14f, 0.0f),
+                Triple(1.32f, 0.02f, 0.0f)
+            ),
+            radialSegs = 24,
+            ribFreq = 4
+        )
         return listOf(
-            createPrimitive(
-                PrimitiveType3D.HEX_PRISM,
-                position = Vec3(0f, -1.15f, 0f),
-                scale = Vec3(1.25f, 0.28f, 1.25f),
-                materialOverride = titanium,
-                customNameFa = "پودیوم پایه برج",
-                customNameEn = "Podium Base"
-            ),
-            twistedTower,
-            createPrimitive(
-                PrimitiveType3D.PYRAMID,
-                position = Vec3(0f, 1.85f, 0f),
-                scale = Vec3(0.55f, 0.45f, 0.55f),
-                materialOverride = cyanGlow,
-                customNameFa = "تاج شیشه‌ای برج",
-                customNameEn = "Crown Spire"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0f, 2.35f, 0f),
-                scale = Vec3(0.06f, 0.45f, 0.06f),
-                materialOverride = titanium,
-                customNameFa = "آنتن مخابراتی نوک برج",
-                customNameEn = "Spire Antenna"
+            SceneNode3D(
+                id = newId("rocket_ship"),
+                name = "Aerospace Rocket",
+                nameFa = "موشک فضایی یکپارچه",
+                typeTag = "Aerospace",
+                vertices = verts,
+                faces = faces,
+                material = curatedMaterials[5] // Carbon Fiber Pro
             )
         )
     }
 
-    fun buildDiamondRingPreset(): List<SceneNode3D> {
-        val gold = curatedMaterials[2]
-        val diamond = PbrMaterial("Brilliant Diamond", "الماس تراش برلیان", 0xFFE0F2FE, 0.15f, 0.04f, 0xFF38BDF8, 0.22f, 0.88f)
-
+    fun buildDiamondGemPreset(): List<SceneNode3D> {
+        val diamondMat = PbrMaterial(
+            name = "Brilliant Diamond",
+            nameFa = "الماس تراش برلیان",
+            baseColorHex = 0xFF67E8F9,
+            metallic = 0.25f,
+            roughness = 0.05f,
+            emissionHex = 0xFF00E5FF,
+            emissionStrength = 0.18f,
+            opacity = 0.90f
+        )
         return listOf(
-            createPrimitive(
-                PrimitiveType3D.TORUS,
-                position = Vec3(0f, -0.15f, 0f),
-                rotation = Vec3(90f, 0f, 0f),
-                scale = Vec3(1.15f, 1.15f, 0.72f),
-                materialOverride = gold,
-                customNameFa = "حلقه طلای ۲۴ عیار",
-                customNameEn = "24K Gold Band"
-            ),
             createPrimitive(
                 PrimitiveType3D.DIAMOND_GEM,
-                position = Vec3(0f, 1.28f, 0f),
-                scale = Vec3(0.62f, 0.55f, 0.62f),
-                materialOverride = diamond,
-                customNameFa = "نگین الماس برلیان",
-                customNameEn = "Brilliant Diamond"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CONE,
-                position = Vec3(0f, 0.95f, 0f),
-                rotation = Vec3(180f, 0f, 0f),
-                scale = Vec3(0.45f, 0.28f, 0.45f),
-                materialOverride = gold,
-                customNameFa = "پایه نگهدارنده نگین",
-                customNameEn = "Crown Basket"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0.38f, 1.18f, 0.38f),
-                scale = Vec3(0.07f, 0.25f, 0.07f),
-                materialOverride = gold,
-                customNameFa = "چنگک طلایی ۱",
-                customNameEn = "Gold Prong 1"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(-0.38f, 1.18f, 0.38f),
-                scale = Vec3(0.07f, 0.25f, 0.07f),
-                materialOverride = gold,
-                customNameFa = "چنگک طلایی ۲",
-                customNameEn = "Gold Prong 2"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0f, 1.18f, -0.45f),
-                scale = Vec3(0.07f, 0.25f, 0.07f),
-                materialOverride = gold,
-                customNameFa = "چنگک طلایی ۳",
-                customNameEn = "Gold Prong 3"
+                scale = Vec3(1.25f, 1.25f, 1.25f),
+                materialOverride = diamondMat,
+                customNameFa = "کریستال الماس برلیان",
+                customNameEn = "Brilliant Cut Diamond"
             )
         )
     }
 
-    fun buildKnightPreset(): List<SceneNode3D> {
-        val steel = curatedMaterials[1]
-        val gold = curatedMaterials[2]
-        val royalPurple = curatedMaterials[10]
-        val crimson = curatedMaterials[6]
-
-        return listOf(
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0f, 0.15f, 0f),
-                scale = Vec3(0.78f, 0.85f, 0.58f),
-                materialOverride = steel,
-                customNameFa = "زره سینه شوالیه",
-                customNameEn = "Knight Breastplate"
+    fun buildChessKingPreset(): List<SceneNode3D> {
+        val (verts, faces) = buildLatheProfileGeometry(
+            rings = listOf(
+                Triple(-1.18f, 0.75f, 0.0f),
+                Triple(-0.95f, 0.68f, 0.0f),
+                Triple(-0.72f, 0.42f, 0.0f),
+                Triple(-0.15f, 0.28f, 0.0f),
+                Triple(0.35f, 0.46f, 0.06f),
+                Triple(0.55f, 0.32f, 0.0f),
+                Triple(0.88f, 0.48f, 0.08f),
+                Triple(1.15f, 0.18f, 0.12f)
             ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0f, 1.25f, 0f),
-                scale = Vec3(0.48f, 0.42f, 0.48f),
-                materialOverride = steel,
-                customNameFa = "کلاهخود فولادی",
-                customNameEn = "Great Helm"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CONE,
-                position = Vec3(0f, 1.85f, -0.08f),
-                scale = Vec3(0.22f, 0.35f, 0.48f),
-                materialOverride = crimson,
-                customNameFa = "پر تاج کلاهخود",
-                customNameEn = "Helmet Plume"
-            ),
-            createPrimitive(
-                PrimitiveType3D.HEX_PRISM,
-                position = Vec3(-0.95f, 0.15f, 0.45f),
-                rotation = Vec3(90f, 0f, -15f),
-                scale = Vec3(0.68f, 0.12f, 0.88f),
-                materialOverride = royalPurple,
-                customNameFa = "سپر سلطنتی",
-                customNameEn = "Royal Shield"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CUBE,
-                position = Vec3(1.05f, 0.55f, 0.35f),
-                rotation = Vec3(15f, 0f, -10f),
-                scale = Vec3(0.09f, 1.15f, 0.18f),
-                materialOverride = steel,
-                customNameFa = "تیغه شمشیر",
-                customNameEn = "Broadsword Blade"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CUBE,
-                position = Vec3(0.95f, -0.15f, 0.22f),
-                rotation = Vec3(15f, 0f, -10f),
-                scale = Vec3(0.38f, 0.08f, 0.12f),
-                materialOverride = gold,
-                customNameFa = "محافظ دسته شمشیر",
-                customNameEn = "Sword Crossguard"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0f, -0.95f, 0f),
-                scale = Vec3(1.1f, 0.18f, 1.1f),
-                materialOverride = gold,
-                customNameFa = "پایه استند کاراکتر",
-                customNameEn = "Display Pedestal"
-            )
+            radialSegs = 24,
+            ribFreq = 8
         )
-    }
-
-    fun buildDesignerVasePreset(): List<SceneNode3D> {
-        val terracotta = curatedMaterials[3]
-        val goldBase = curatedMaterials[2]
         return listOf(
-            createPrimitive(
-                PrimitiveType3D.TWISTED_VASE,
-                position = Vec3(0f, 0.2f, 0f),
-                scale = Vec3(1.15f, 1.15f, 1.15f),
-                materialOverride = terracotta,
-                customNameFa = "بدنه گلدان پارامتریک",
-                customNameEn = "Twisted Ribbed Vase"
-            ),
-            createPrimitive(
-                PrimitiveType3D.CYLINDER,
-                position = Vec3(0f, -1.05f, 0f),
-                scale = Vec3(0.88f, 0.12f, 0.88f),
-                materialOverride = goldBase,
-                customNameFa = "کفی تراز پرینت سه‌بعدی",
-                customNameEn = "Print Bed Base"
+            SceneNode3D(
+                id = newId("chess_king"),
+                name = "Grandmaster Chess King",
+                nameFa = "مهره شاه شطرنج چوبی",
+                typeTag = "Chess",
+                vertices = verts,
+                faces = faces,
+                material = curatedMaterials[10] // Natural Walnut Wood
             )
         )
     }

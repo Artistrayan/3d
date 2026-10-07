@@ -32,15 +32,16 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ControlCamera
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.OpenWith
@@ -85,7 +86,6 @@ import com.example.ui.theme.AxisBlueZ
 import com.example.ui.theme.AxisGreenY
 import com.example.ui.theme.AxisRedX
 import com.example.ui.theme.CyberCyan
-import com.example.ui.theme.JetBrainsMonoFontFamily
 import com.example.ui.theme.ManifoldEmerald
 import com.example.ui.theme.SculptAmber
 import com.example.ui.theme.StudioBorder
@@ -109,12 +109,10 @@ fun PolyForgeStudioScreen(
     val recentExports by viewModel.recentExports.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // Return to main 3D Viewport when pressing back on secondary tabs
     BackHandler(enabled = uiState.activeTab != StudioTab.VIEWPORT) {
         viewModel.selectTab(StudioTab.VIEWPORT)
     }
 
-    // Storage Access Framework: Save 3D file (.glb, .stl, .obj, .ply)
     val saveDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("*/*")
     ) { uri ->
@@ -123,7 +121,6 @@ fun PolyForgeStudioScreen(
         }
     }
 
-    // Storage Access Framework: Import 3D file (.stl, .obj, .ply)
     val openDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -149,6 +146,7 @@ fun PolyForgeStudioScreen(
                 onUndo = viewModel::undo,
                 onRedo = viewModel::redo,
                 onToggleLanguage = viewModel::toggleLanguage,
+                onQuickTextureClick = { viewModel.selectTab(StudioTab.MATERIAL_LIGHT) },
                 onQuickExportClick = { viewModel.selectTab(StudioTab.EXPORT_PROJECTS) }
             )
         },
@@ -169,7 +167,6 @@ fun PolyForgeStudioScreen(
             val selectedNode = uiState.nodes.firstOrNull { it.id == uiState.selectedNodeId }
 
             Column(modifier = Modifier.fillMaxSize()) {
-                // Status toast banner if present
                 AnimatedVisibility(visible = uiState.statusBannerMessage != null) {
                     uiState.statusBannerMessage?.let { msg ->
                         Row(
@@ -202,7 +199,6 @@ fun PolyForgeStudioScreen(
                 }
 
                 if (isWideScreen) {
-                    // Canonical Split View for Tablets / Foldables / Landscape
                     Row(modifier = Modifier.fillMaxSize()) {
                         Box(modifier = Modifier.weight(1.25f).fillMaxHeight()) {
                             InteractiveViewportWorkspace(
@@ -224,6 +220,7 @@ fun PolyForgeStudioScreen(
                                     savedProjects = savedProjects,
                                     recentExports = recentExports,
                                     viewModel = viewModel,
+                                    context = context,
                                     onLaunchSaveFile = { fileName -> saveDocumentLauncher.launch(fileName) },
                                     onLaunchShareFile = { viewModel.shareExportFile(context) },
                                     onLaunchImportFile = { openDocumentLauncher.launch(arrayOf("*/*")) }
@@ -232,7 +229,6 @@ fun PolyForgeStudioScreen(
                         }
                     }
                 } else {
-                    // Handheld Portrait Layout with Live 3D Mini-Preview Header on Secondary Tabs
                     if (uiState.activeTab == StudioTab.VIEWPORT) {
                         InteractiveViewportWorkspace(
                             uiState = uiState,
@@ -241,7 +237,6 @@ fun PolyForgeStudioScreen(
                         )
                     } else {
                         Column(modifier = Modifier.fillMaxSize()) {
-                            // Live Interactive 3D Preview Strip at top so user sees changes in real-time!
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -304,6 +299,7 @@ fun PolyForgeStudioScreen(
                                     savedProjects = savedProjects,
                                     recentExports = recentExports,
                                     viewModel = viewModel,
+                                    context = context,
                                     onLaunchSaveFile = { fileName -> saveDocumentLauncher.launch(fileName) },
                                     onLaunchShareFile = { viewModel.shareExportFile(context) },
                                     onLaunchImportFile = { openDocumentLauncher.launch(arrayOf("*/*")) }
@@ -324,6 +320,7 @@ private fun ActiveSecondaryTabContent(
     savedProjects: List<com.example.data.ProjectEntity>,
     recentExports: List<com.example.data.ExportLogEntity>,
     viewModel: StudioViewModel,
+    context: android.content.Context,
     onLaunchSaveFile: (String) -> Unit,
     onLaunchShareFile: () -> Unit,
     onLaunchImportFile: () -> Unit
@@ -333,7 +330,7 @@ private fun ActiveSecondaryTabContent(
             LibraryPanel(
                 isPersian = uiState.isPersian,
                 onAddPrimitive = { prim ->
-                    viewModel.addPrimitive(prim)
+                    viewModel.addPrimitive(prim, appendToScene = false)
                     viewModel.selectTab(StudioTab.VIEWPORT)
                 },
                 onLoadPreset = viewModel::loadReadyModelPreset
@@ -366,7 +363,12 @@ private fun ActiveSecondaryTabContent(
                 onSetShadingMode = viewModel::setShadingMode,
                 onSetLightingPreset = viewModel::setLightingPreset,
                 onUpdateMaterial = viewModel::updateSelectedMaterial,
-                onApplyPresetMaterial = viewModel::applyMaterialPresetToSelected
+                onApplyPresetMaterial = viewModel::applyMaterialPresetToSelected,
+                onSelectTextureType = viewModel::selectTextureType,
+                onAddPaintStroke = viewModel::addPaintStrokeToSelected,
+                onClearPaintStrokes = viewModel::clearPaintStrokesOnSelected,
+                onRandomizeTexture = viewModel::randomizeProceduralTexture,
+                onExportTexturePng = { viewModel.shareCurrentTextureAsPng(context) }
             )
         }
         StudioTab.EXPORT_PROJECTS -> {
@@ -397,6 +399,7 @@ private fun StudioTopHudBar(
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     onToggleLanguage: () -> Unit,
+    onQuickTextureClick: () -> Unit,
     onQuickExportClick: () -> Unit
 ) {
     Surface(
@@ -411,7 +414,6 @@ private fun StudioTopHudBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Brand + Live Poly/Vertex Telemetry
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 Box(
                     modifier = Modifier
@@ -439,7 +441,7 @@ private fun StudioTopHudBar(
                     Text(
                         text = String.format(
                             Locale.US,
-                            "%d Parts • %d Verts • %d Tris",
+                            "%d Model • %d Verts • %d Tris",
                             uiState.engineeringStats.objectCount,
                             uiState.engineeringStats.totalVertices,
                             uiState.engineeringStats.totalTriangles
@@ -450,7 +452,6 @@ private fun StudioTopHudBar(
                 }
             }
 
-            // Action Buttons: Undo, Redo, Language, Quick Export
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -477,6 +478,35 @@ private fun StudioTopHudBar(
                         contentDescription = "Redo",
                         tint = if (uiState.canRedo) Color.White else TextSecondary.copy(alpha = 0.35f)
                     )
+                }
+
+                // Quick Texture Maker Button
+                Surface(
+                    color = SculptAmber.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .border(1.dp, SculptAmber, RoundedCornerShape(10.dp))
+                        .clickable(onClick = onQuickTextureClick)
+                        .testTag("quick_texture_button")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Brush,
+                            contentDescription = "Texture Studio",
+                            tint = SculptAmber,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (uiState.isPersian) "ساخت تکسچر" else "Texture",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = SculptAmber,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 FilledTonalIconButton(
@@ -559,7 +589,7 @@ private fun InteractiveViewportWorkspace(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. Top Floating Camera View & Viewport Overlays Pill Bar
+        // 2. Top Floating Camera View & Clean Workspace Pill Bar
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -568,6 +598,34 @@ private fun InteractiveViewportWorkspace(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            // 1-Tap Clear Workspace button so the user can empty the CAD table anytime!
+            Surface(
+                color = Color(0xFF450A0A).copy(alpha = 0.9f),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .border(1.dp, AxisRedX, RoundedCornerShape(10.dp))
+                    .clickable(onClick = viewModel::clearWorkspaceToEmpty)
+                    .testTag("clear_workspace_chip")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteSweep,
+                        contentDescription = "Clear Workspace",
+                        tint = AxisRedX,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (uiState.isPersian) "خلوت کردن میز کار" else "Clear Scene",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(0xFFFCA5A5)
+                    )
+                }
+            }
+
             HudChip(
                 label = if (uiState.isOrthographic) "ORTHO" else "PERSP",
                 active = uiState.isOrthographic,
@@ -577,26 +635,20 @@ private fun InteractiveViewportWorkspace(
             HudChip(
                 label = if (uiState.isPersian) "ایزومتریک" else "Iso",
                 active = false,
-                onClick = { viewModel.setCameraPreset(-35f, 25f, 6.2f) },
+                onClick = { viewModel.setCameraPreset(-35f, 25f, 5.4f) },
                 tag = "cam_preset_iso"
             )
             HudChip(
                 label = if (uiState.isPersian) "روبرو" else "Front",
                 active = false,
-                onClick = { viewModel.setCameraPreset(0f, 0f, 5.8f) },
+                onClick = { viewModel.setCameraPreset(0f, 0f, 5.2f) },
                 tag = "cam_preset_front"
             )
             HudChip(
                 label = if (uiState.isPersian) "بالا" else "Top",
                 active = false,
-                onClick = { viewModel.setCameraPreset(0f, 85f, 6.5f) },
+                onClick = { viewModel.setCameraPreset(0f, 85f, 5.8f) },
                 tag = "cam_preset_top"
-            )
-            HudChip(
-                label = if (uiState.isPersian) "پهلو" else "Right",
-                active = false,
-                onClick = { viewModel.setCameraPreset(-90f, 0f, 5.8f) },
-                tag = "cam_preset_right"
             )
             HudChip(
                 label = if (uiState.isPersian) "مش سیمی" else "Wire",
@@ -615,12 +667,6 @@ private fun InteractiveViewportWorkspace(
                 active = uiState.showNormals,
                 onClick = viewModel::toggleNormals,
                 tag = "toggle_normals_chip"
-            )
-            HudChip(
-                label = if (uiState.isPersian) "رئوس" else "Vertices",
-                active = uiState.showVertices,
-                onClick = viewModel::toggleVertices,
-                tag = "toggle_vertices_chip"
             )
             HudChip(
                 label = if (uiState.isPersian) "چرخش ۳۶۰°" else "Turntable",
@@ -671,7 +717,6 @@ private fun InteractiveViewportWorkspace(
                 tag = "tool_scale"
             )
 
-            // Axis Constraints (ALL, X, Y, Z)
             AxisPillButton("XYZ", AxisConstraint.ALL, uiState.axisConstraint, CyberCyan) {
                 viewModel.setAxisConstraint(AxisConstraint.ALL)
             }
@@ -686,7 +731,7 @@ private fun InteractiveViewportWorkspace(
             }
         }
 
-        // 4. Bottom Collapsible Scene Outliner + Precision CAD Transform Inspector
+        // 4. Bottom Collapsible Single-Model Switcher + Precision CAD Transform Inspector
         Surface(
             color = StudioSurface.copy(alpha = 0.94f),
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
@@ -700,7 +745,6 @@ private fun InteractiveViewportWorkspace(
                 )
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-                // Header Row: Outliner Chips + Expand/Collapse Toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -713,89 +757,80 @@ private fun InteractiveViewportWorkspace(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Quick Add Primitive Pill
-                        Surface(
-                            color = CyberCyan.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .clickable { viewModel.addPrimitive(PrimitiveType3D.CUBE) }
-                                .testTag("quick_add_cube_btn")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (uiState.isPersian) "مکعب+" else "+Cube",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = CyberCyan
-                                )
-                            }
-                        }
-
-                        Surface(
-                            color = SculptAmber.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .clickable { viewModel.addPrimitive(PrimitiveType3D.SPHERE) }
-                                .testTag("quick_add_sphere_btn")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, tint = SculptAmber, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (uiState.isPersian) "کره+" else "+Sphere",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = SculptAmber
-                                )
-                            }
-                        }
-
-                        // Scene Node Chips
-                        uiState.nodes.forEach { node ->
-                            val isSel = node.id == uiState.selectedNodeId
+                        // Clean Single-Shape Switcher Pills (replaces active shape so workspace stays clean!)
+                        val quickPrims = listOf(
+                            PrimitiveType3D.CUBE to (if (uiState.isPersian) "مکعب" else "Cube"),
+                            PrimitiveType3D.SPHERE to (if (uiState.isPersian) "کره" else "Sphere"),
+                            PrimitiveType3D.CYLINDER to (if (uiState.isPersian) "استوانه" else "Cylinder"),
+                            PrimitiveType3D.GEAR to (if (uiState.isPersian) "چرخ‌دنده" else "Gear"),
+                            PrimitiveType3D.TWISTED_VASE to (if (uiState.isPersian) "گلدان" else "Vase"),
+                            PrimitiveType3D.DIAMOND_GEM to (if (uiState.isPersian) "الماس" else "Gem")
+                        )
+                        quickPrims.forEach { (primType, label) ->
+                            val isActiveType = selectedNode?.typeTag == primType.name && uiState.nodes.size == 1
                             Surface(
-                                color = if (isSel) Color(0xFF083344) else StudioSurfaceElevated,
+                                color = if (isActiveType) CyberCyan.copy(alpha = 0.24f) else StudioSurfaceElevated,
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier
                                     .border(
                                         1.dp,
-                                        if (isSel) CyberCyan else StudioBorder,
+                                        if (isActiveType) CyberCyan else StudioBorder,
                                         RoundedCornerShape(10.dp)
                                     )
-                                    .clickable { viewModel.selectNode(node.id) }
+                                    .clickable { viewModel.addPrimitive(primType, appendToScene = false) }
+                                    .testTag("quick_switch_${primType.name.lowercase()}")
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (isActiveType) CyberCyan else Color.White,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
+                        // Scene Node Chips if user added multiple objects
+                        if (uiState.nodes.size > 1) {
+                            uiState.nodes.forEach { node ->
+                                val isSel = node.id == uiState.selectedNodeId
+                                Surface(
+                                    color = if (isSel) Color(0xFF083344) else StudioSurfaceElevated,
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .border(
+                                            1.dp,
+                                            if (isSel) CyberCyan else StudioBorder,
+                                            RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable { viewModel.selectNode(node.id) }
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(node.material.baseColorHex))
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = if (uiState.isPersian) node.nameFa else node.name,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = if (isSel) CyberCyan else Color.White,
-                                        maxLines = 1
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Icon(
-                                        imageVector = if (node.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = "Toggle visibility",
-                                        tint = if (node.visible) TextSecondary else Color(0xFFEF4444),
-                                        modifier = Modifier
-                                            .size(15.dp)
-                                            .clickable { viewModel.toggleNodeVisibility(node.id) }
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(node.material.baseColorHex))
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (uiState.isPersian) node.nameFa else node.name,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = if (isSel) CyberCyan else Color.White,
+                                            maxLines = 1
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Icon(
+                                            imageVector = if (node.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                            contentDescription = "Toggle visibility",
+                                            tint = if (node.visible) TextSecondary else Color(0xFFEF4444),
+                                            modifier = Modifier
+                                                .size(15.dp)
+                                                .clickable { viewModel.toggleNodeVisibility(node.id) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -815,7 +850,6 @@ private fun InteractiveViewportWorkspace(
                     }
                 }
 
-                // Precision CAD Transform Controls for Selected Node
                 AnimatedVisibility(visible = inspectorExpanded && selectedNode != null) {
                     if (selectedNode != null) {
                         Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
@@ -826,14 +860,29 @@ private fun InteractiveViewportWorkspace(
                             ) {
                                 Text(
                                     text = if (uiState.isPersian)
-                                        "بازرس مختصات: ${selectedNode.nameFa} (${selectedNode.faces.size} مثلث)"
+                                        "${selectedNode.nameFa} (${selectedNode.faces.size} مثلث)"
                                     else
-                                        "Transform: ${selectedNode.name} (${selectedNode.faces.size} Tris)",
+                                        "${selectedNode.name} (${selectedNode.faces.size} Tris)",
                                     style = MaterialTheme.typography.labelLarge,
                                     color = Color.White
                                 )
 
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Surface(
+                                        color = SculptAmber.copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .clickable { viewModel.selectTab(StudioTab.MATERIAL_LIGHT) }
+                                            .testTag("inspector_texture_btn")
+                                    ) {
+                                        Text(
+                                            text = if (uiState.isPersian) "تکسچر+" else "+Texture",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = SculptAmber,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                        )
+                                    }
+
                                     Surface(
                                         color = StudioSurfaceElevated,
                                         shape = RoundedCornerShape(8.dp),
@@ -842,7 +891,7 @@ private fun InteractiveViewportWorkspace(
                                             .testTag("quick_subdivide_btn")
                                     ) {
                                         Text(
-                                            text = if (uiState.isPersian) "Subdivide+" else "Subdivide+",
+                                            text = "Subdivide+",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = CyberCyan,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
@@ -883,7 +932,6 @@ private fun InteractiveViewportWorkspace(
 
                             Spacer(modifier = Modifier.height(6.dp))
 
-                            // Dynamic X/Y/Z Sliders based on active Tool Mode (Position, Rotation, or Scale)
                             val activeMode = if (uiState.toolMode == TransformToolMode.SELECT_ORBIT) {
                                 TransformToolMode.MOVE
                             } else uiState.toolMode
@@ -1103,7 +1151,7 @@ private fun StudioBottomNavigationBar(
             Triple(StudioTab.VIEWPORT, Icons.Default.ViewInAr, "nav_tab_viewport"),
             Triple(StudioTab.LIBRARY, Icons.Default.Layers, "nav_tab_library"),
             Triple(StudioTab.SCULPT_MESH, Icons.Default.AutoFixHigh, "nav_tab_sculpt"),
-            Triple(StudioTab.MATERIAL_LIGHT, Icons.Default.Palette, "nav_tab_material"),
+            Triple(StudioTab.MATERIAL_LIGHT, Icons.Default.Brush, "nav_tab_material"),
             Triple(StudioTab.EXPORT_PROJECTS, Icons.Default.IosShare, "nav_tab_export")
         )
         for ((tab, icon, tag) in items) {
