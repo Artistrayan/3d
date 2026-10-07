@@ -172,15 +172,15 @@ fun Viewport3DCanvas(
             if (w <= 10f || h <= 10f) return@Canvas
 
             val cx = w * 0.5f + cameraPanX
-            val cy = h * 0.48f + cameraPanY
-            val baseScale = min(w, h) * 0.48f
+            val cy = h * 0.50f + cameraPanY
+            val baseScale = min(w, h) * 0.56f
 
             val yawRad = Math.toRadians(effectiveYaw.toDouble()).toFloat()
             val pitchRad = Math.toRadians(cameraPitch.toDouble()).toFloat()
             val cosY = cos(yawRad); val sinY = sin(yawRad)
             val cosP = cos(pitchRad); val sinP = sin(pitchRad)
-            val camDist = cameraZoom.coerceIn(2.2f, 22f)
-            val fovFactor = 3.8f
+            val camDist = cameraZoom.coerceIn(1.8f, 22f)
+            val fovFactor = 3.9f
 
             fun worldToCamera(v: Vec3): Vec3 {
                 val x1 = v.x * cosY + v.z * sinY
@@ -206,21 +206,22 @@ fun Viewport3DCanvas(
                 return scr to cam.z
             }
 
-            // 1. Draw Perspective CAD Ground Grid & Build Plate (Y = -1.0f default floor)
+            // 1. Draw Full-Screen Perspective CAD Ground Grid & Build Plate (Y = -1.0f default floor)
             val gridY = -1.0f
             if (showGrid) {
-                val gridRange = 5
+                val gridRange = 10
                 for (i in -gridRange..gridRange) {
                     val f = i.toFloat()
+                    val distFade = (1f - (abs(i) / (gridRange + 2f)) * 0.55f).coerceIn(0.2f, 1f)
                     val pStartX = projectWorld(Vec3(-gridRange.toFloat(), gridY, f))
                     val pEndX = projectWorld(Vec3(gridRange.toFloat(), gridY, f))
                     if (pStartX != null && pEndX != null) {
                         val isCenterZ = i == 0
                         drawLine(
-                            color = if (isCenterZ) AxisRedX.copy(alpha = 0.72f) else Color(0xFF334155).copy(alpha = if (i % 2 == 0) 0.45f else 0.22f),
+                            color = if (isCenterZ) AxisRedX.copy(alpha = 0.8f) else Color(0xFF334155).copy(alpha = (if (i % 2 == 0) 0.52f else 0.28f) * distFade),
                             start = pStartX.first,
                             end = pEndX.first,
-                            strokeWidth = if (isCenterZ) 2.4f else if (i % 2 == 0) 1.3f else 0.8f
+                            strokeWidth = if (isCenterZ) 2.6f else if (i % 2 == 0) 1.4f else 0.9f
                         )
                     }
                     val pStartZ = projectWorld(Vec3(f, gridY, -gridRange.toFloat()))
@@ -228,22 +229,22 @@ fun Viewport3DCanvas(
                     if (pStartZ != null && pEndZ != null) {
                         val isCenterX = i == 0
                         drawLine(
-                            color = if (isCenterX) AxisBlueZ.copy(alpha = 0.72f) else Color(0xFF334155).copy(alpha = if (i % 2 == 0) 0.45f else 0.22f),
+                            color = if (isCenterX) AxisBlueZ.copy(alpha = 0.8f) else Color(0xFF334155).copy(alpha = (if (i % 2 == 0) 0.52f else 0.28f) * distFade),
                             start = pStartZ.first,
                             end = pEndZ.first,
-                            strokeWidth = if (isCenterX) 2.4f else if (i % 2 == 0) 1.3f else 0.8f
+                            strokeWidth = if (isCenterX) 2.6f else if (i % 2 == 0) 1.4f else 0.9f
                         )
                     }
                 }
 
                 val originBottom = projectWorld(Vec3(0f, gridY, 0f))
-                val originTop = projectWorld(Vec3(0f, gridY + 2.4f, 0f))
+                val originTop = projectWorld(Vec3(0f, gridY + 2.8f, 0f))
                 if (originBottom != null && originTop != null) {
                     drawLine(
-                        color = AxisGreenY.copy(alpha = 0.35f),
+                        color = AxisGreenY.copy(alpha = 0.42f),
                         start = originBottom.first,
                         end = originTop.first,
-                        strokeWidth = 1.4f
+                        strokeWidth = 1.6f
                     )
                 }
             }
@@ -627,7 +628,7 @@ private fun DrawScope.drawOrientationCompass(
     sinP: Float,
     textMeasurer: androidx.compose.ui.text.TextMeasurer
 ) {
-    val gizmoCenter = Offset(size.width - 54f, 64f)
+    val gizmoCenter = Offset(size.width - 115f, 290f)
     val armLen = 30f
 
     drawCircle(

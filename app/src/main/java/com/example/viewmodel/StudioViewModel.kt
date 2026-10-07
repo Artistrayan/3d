@@ -72,7 +72,7 @@ data class StudioUiState(
     val autoTurntable: Boolean = false,
     val cameraYaw: Float = -32f,
     val cameraPitch: Float = 22f,
-    val cameraZoom: Float = 5.4f,
+    val cameraZoom: Float = 4.5f,
     val cameraPanX: Float = 0f,
     val cameraPanY: Float = 0f,
     val canUndo: Boolean = false,
