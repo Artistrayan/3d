@@ -1,0 +1,6 @@
+{
+  "name": "PolyForge 3D",
+  "description": "Professional 3D CAD, mesh sculpting, and parametric modeling studio with real GLB, STL, OBJ, and PLY export, ready-made 3D assets, PBR materials, and 3D printing analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

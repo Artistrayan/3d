@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">PolyForge 3D</string>
+    <string name="studio_subtitle">استودیو حرفه‌ای مدل‌سازی و مهندسی سه‌بعدی</string>
+    <string name="tab_viewport">میز کار 3D</string>
+    <string name="tab_library">مدل‌های آماده</string>
+    <string name="tab_sculpt">ابزار و مش</string>
+    <string name="tab_material">متریال و نور</string>
+    <string name="tab_export">خروجی GLB/STL</string>
+    <string name="tab_projects">پروژه‌ها</string>
+    <string name="action_undo">بازگشت (Undo)</string>
+    <string name="action_redo">تکرار (Redo)</string>
+    <string name="action_export">خروجی واقعی سه‌بعدی</string>
+    <string name="action_import">ورود فایل 3D</string>
+    <string name="action_save_project">ذخیره پروژه</string>
+    <string name="action_add_primitive">افزودن شکل پایه</string>
+    <string name="action_reset_camera">تنظیم مجدد دوربین</string>
+</resources>
