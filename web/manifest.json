@@ -1,0 +1,10 @@
+{
+  "name": "PolyForge 3D Web Studio",
+  "short_name": "PolyForge 3D",
+  "description": "استودیو رایگان و حرفه‌ای مدل‌سازی سه‌بعدی تحت وب با خروجی GLB، STL و OBJ",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B101E",
+  "theme_color": "#00E5FF"
+}

@@ -3,12 +3,9 @@ package com.example.ui.screens
 import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +16,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -44,13 +40,18 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.OpenWith
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material.icons.filled.ZoomOutMap
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -77,6 +78,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.engine.PrimitiveType3D
 import com.example.model.AxisConstraint
+import com.example.model.ExportFormat3D
 import com.example.model.SceneNode3D
 import com.example.model.TransformToolMode
 import com.example.model.Vec3
@@ -84,6 +86,7 @@ import com.example.ui.theme.AxisBlueZ
 import com.example.ui.theme.AxisGreenY
 import com.example.ui.theme.AxisRedX
 import com.example.ui.theme.CyberCyan
+import com.example.ui.theme.ManifoldEmerald
 import com.example.ui.theme.SculptAmber
 import com.example.ui.theme.StudioBorder
 import com.example.ui.theme.StudioObsidian
@@ -109,6 +112,8 @@ fun PolyForgeStudioScreen(
     var isFullScreenImmersive by remember { mutableStateOf(false) }
     var inspectorExpanded by remember { mutableStateOf(false) }
     var sheetMaximized by remember { mutableStateOf(false) }
+    var showWebStudioPreview by remember { mutableStateOf(false) }
+    var showQuickImportDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = uiState.activeTab != StudioTab.VIEWPORT || isFullScreenImmersive) {
         if (isFullScreenImmersive) {
@@ -123,6 +128,14 @@ fun PolyForgeStudioScreen(
     ) { uri ->
         if (uri != null) {
             viewModel.writeExportToUri(context, uri)
+        }
+    }
+
+    val saveApkLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")
+    ) { uri ->
+        if (uri != null) {
+            viewModel.writeInstalledApkToUri(context, uri)
         }
     }
 
@@ -141,136 +154,171 @@ fun PolyForgeStudioScreen(
         }
     }
 
+    val photoTextureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            var fileName = "gallery_photo.jpg"
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0 && cursor.moveToFirst()) {
+                    fileName = cursor.getString(nameIndex) ?: fileName
+                }
+            }
+            viewModel.importPhotoAsTextureUri(context, uri, fileName)
+        }
+    }
+
+    val photoTo3DReliefLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            var fileName = "photo_relief.jpg"
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0 && cursor.moveToFirst()) {
+                    fileName = cursor.getString(nameIndex) ?: fileName
+                }
+            }
+            viewModel.importPhotoAs3DReliefUri(context, uri, fileName)
+        }
+    }
+
     val selectedNode = uiState.nodes.firstOrNull { it.id == uiState.selectedNodeId }
 
-    // 100% True Full-Screen Edge-to-Edge 3D Workspace Container
-    Box(
+    // Structured, Non-Overlapping Column Layout so no bars or panels ever collide
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(StudioObsidian)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        // Layer 1: Full-Bleed 100% Screen 3D Viewport Canvas (Always Full-Screen!)
-        Viewport3DCanvas(
-            nodes = uiState.nodes,
-            selectedNodeId = uiState.selectedNodeId,
-            shadingMode = uiState.shadingMode,
-            lightingPreset = uiState.lightingPreset,
-            toolMode = uiState.toolMode,
-            axisConstraint = uiState.axisConstraint,
-            isOrthographic = uiState.isOrthographic,
-            showGrid = uiState.showGrid,
-            showWireframeOverlay = uiState.showWireframeOverlay,
-            showNormals = uiState.showNormals,
-            showVertices = uiState.showVertices,
-            showDimensions = uiState.showDimensions,
-            autoTurntable = uiState.autoTurntable,
-            cameraYaw = uiState.cameraYaw,
-            cameraPitch = uiState.cameraPitch,
-            cameraZoom = uiState.cameraZoom,
-            cameraPanX = uiState.cameraPanX,
-            cameraPanY = uiState.cameraPanY,
-            engineeringStats = uiState.engineeringStats,
-            onOrbitCamera = viewModel::orbitCamera,
-            onZoomPanCamera = viewModel::zoomAndPanCamera,
-            onTransformSelectedByDrag = viewModel::transformSelectedByViewportDrag,
-            onSelectNode = viewModel::selectNode,
-            modifier = Modifier.fillMaxSize()
-        )
+        // 1. Clean Top Header Bar (Hidden in Immersive Full-Screen mode)
+        if (!isFullScreenImmersive) {
+            StudioTopHeaderBar(
+                uiState = uiState,
+                onUndo = viewModel::undo,
+                onRedo = viewModel::redo,
+                onEnterFullScreen = {
+                    viewModel.selectTab(StudioTab.VIEWPORT)
+                    isFullScreenImmersive = true
+                },
+                onQuickImportClick = { showQuickImportDialog = true },
+                onQuickPhotoClick = { showQuickImportDialog = true },
+                onQuickWebClick = { showWebStudioPreview = true },
+                onQuickTextureClick = { viewModel.selectTab(StudioTab.MATERIAL_LIGHT) },
+                onQuickExportClick = { viewModel.selectTab(StudioTab.EXPORT_PROJECTS) }
+            )
 
-        // Layer 2: Safe-Area Floating HUD Overlay
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-        ) {
-            // Top Floating Translucent Header + Camera Pills (Hidden when in Full-Screen Immersive mode)
-            AnimatedVisibility(
-                visible = !isFullScreenImmersive,
-                enter = fadeIn() + slideInVertically { -it },
-                exit = fadeOut() + slideOutVertically { -it },
-                modifier = Modifier.align(Alignment.TopCenter)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    StudioFloatingTopBar(
-                        uiState = uiState,
-                        onUndo = viewModel::undo,
-                        onRedo = viewModel::redo,
-                        onToggleLanguage = viewModel::toggleLanguage,
-                        onEnterFullScreen = { isFullScreenImmersive = true },
-                        onQuickTextureClick = { viewModel.selectTab(StudioTab.MATERIAL_LIGHT) },
-                        onQuickExportClick = { viewModel.selectTab(StudioTab.EXPORT_PROJECTS) }
-                    )
-
-                    // Status toast banner if present
-                    AnimatedVisibility(visible = uiState.statusBannerMessage != null) {
-                        uiState.statusBannerMessage?.let { msg ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 2.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xEE083344))
-                                    .border(1.dp, CyberCyan.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = msg,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = CyberCyan,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(
-                                    onClick = viewModel::clearStatusMessage,
-                                    modifier = Modifier.size(22.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Dismiss",
-                                        tint = CyberCyan,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Camera View & Clean Scene Floating Chips
+            // Status toast banner if present
+            AnimatedVisibility(visible = uiState.statusBannerMessage != null) {
+                uiState.statusBannerMessage?.let { msg ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 10.dp, top = 6.dp, end = 92.dp)
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            .background(Color(0xFF083344))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Surface(
-                            color = Color(0xCC450A0A),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .border(1.dp, AxisRedX, RoundedCornerShape(10.dp))
-                                .clickable(onClick = viewModel::clearWorkspaceToEmpty)
-                                .testTag("clear_workspace_chip")
+                        Text(
+                            text = msg,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = CyberCyan,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = viewModel::clearStatusMessage,
+                            modifier = Modifier.size(22.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteSweep,
-                                    contentDescription = "Clear Workspace",
-                                    tint = AxisRedX,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (uiState.isPersian) "خلوت کردن" else "Clear",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFFFCA5A5)
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Dismiss",
+                                tint = CyberCyan,
+                                modifier = Modifier.size(14.dp)
+                            )
                         }
+                    }
+                }
+            }
+        }
 
+        // 2. Main Middle Workspace Area (Zero overlap with top or bottom navigation bars)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            if (uiState.activeTab == StudioTab.VIEWPORT) {
+                // Full 3D Viewport Canvas
+                Viewport3DCanvas(
+                    nodes = uiState.nodes,
+                    selectedNodeId = uiState.selectedNodeId,
+                    shadingMode = uiState.shadingMode,
+                    lightingPreset = uiState.lightingPreset,
+                    toolMode = uiState.toolMode,
+                    axisConstraint = uiState.axisConstraint,
+                    isOrthographic = uiState.isOrthographic,
+                    showGrid = uiState.showGrid,
+                    showWireframeOverlay = uiState.showWireframeOverlay,
+                    showNormals = uiState.showNormals,
+                    showVertices = uiState.showVertices,
+                    showDimensions = uiState.showDimensions,
+                    autoTurntable = uiState.autoTurntable,
+                    cameraYaw = uiState.cameraYaw,
+                    cameraPitch = uiState.cameraPitch,
+                    cameraZoom = uiState.cameraZoom,
+                    cameraPanX = uiState.cameraPanX,
+                    cameraPanY = uiState.cameraPanY,
+                    engineeringStats = uiState.engineeringStats,
+                    onOrbitCamera = viewModel::orbitCamera,
+                    onZoomPanCamera = viewModel::zoomAndPanCamera,
+                    onTransformSelectedByDrag = viewModel::transformSelectedByViewportDrag,
+                    onSelectNode = viewModel::selectNode,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                if (isFullScreenImmersive) {
+                    // Single minimal button in top-left corner to exit Full-Screen mode
+                    Surface(
+                        color = StudioSurface.copy(alpha = 0.88f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(10.dp)
+                            .border(1.dp, CyberCyan, RoundedCornerShape(10.dp))
+                            .clickable { isFullScreenImmersive = false }
+                            .testTag("exit_fullscreen_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FullscreenExit,
+                                contentDescription = "Exit Fullscreen",
+                                tint = CyberCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (uiState.isPersian) "نمایش نوار ابزار" else "Show UI",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.White
+                            )
+                        }
+                    }
+                } else {
+                    // Top Single Scrollable Strip of Camera & View Presets (Never wraps or crowds)
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         HudChip(
                             label = if (uiState.isOrthographic) "ORTHO" else "PERSP",
                             active = uiState.isOrthographic,
@@ -280,19 +328,19 @@ fun PolyForgeStudioScreen(
                         HudChip(
                             label = if (uiState.isPersian) "ایزومتریک" else "Iso",
                             active = false,
-                            onClick = { viewModel.setCameraPreset(-35f, 25f, 5.4f) },
+                            onClick = { viewModel.setCameraPreset(-35f, 25f, 5.0f) },
                             tag = "cam_preset_iso"
                         )
                         HudChip(
                             label = if (uiState.isPersian) "روبرو" else "Front",
                             active = false,
-                            onClick = { viewModel.setCameraPreset(0f, 0f, 5.2f) },
+                            onClick = { viewModel.setCameraPreset(0f, 0f, 5.0f) },
                             tag = "cam_preset_front"
                         )
                         HudChip(
                             label = if (uiState.isPersian) "بالا" else "Top",
                             active = false,
-                            onClick = { viewModel.setCameraPreset(0f, 85f, 5.8f) },
+                            onClick = { viewModel.setCameraPreset(0f, 85f, 5.5f) },
                             tag = "cam_preset_top"
                         )
                         HudChip(
@@ -308,152 +356,119 @@ fun PolyForgeStudioScreen(
                             tag = "toggle_dims_chip"
                         )
                         HudChip(
-                            label = if (uiState.isPersian) "چرخش ۳۶۰°" else "Turntable",
+                            label = if (uiState.isPersian) "چرخش ۳۶۰°" else "360°",
                             active = uiState.autoTurntable,
                             onClick = viewModel::toggleAutoTurntable,
                             tag = "toggle_turntable_chip"
                         )
-                    }
-                }
-            }
-
-            // Floating Exit-Full-Screen Pill when in Immersive Full-Screen Mode
-            AnimatedVisibility(
-                visible = isFullScreenImmersive,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(12.dp)
-            ) {
-                Surface(
-                    color = StudioSurface.copy(alpha = 0.85f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .border(1.dp, CyberCyan, RoundedCornerShape(12.dp))
-                        .clickable { isFullScreenImmersive = false }
-                        .testTag("exit_fullscreen_button")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FullscreenExit,
-                            contentDescription = "Exit Fullscreen",
-                            tint = CyberCyan,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (uiState.isPersian) "خروج از حالت تمام‌صفحه" else "Show Controls",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-
-            // Left Compact Floating 3D Transform Tool Dock
-            AnimatedVisibility(
-                visible = !isFullScreenImmersive && uiState.activeTab == StudioTab.VIEWPORT,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 8.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(StudioSurface.copy(alpha = 0.78f))
-                        .border(1.dp, StudioBorder.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
-                        .padding(5.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    ToolDockIconButton(
-                        icon = Icons.Default.CenterFocusStrong,
-                        label = "Orbit",
-                        selected = uiState.toolMode == TransformToolMode.SELECT_ORBIT,
-                        onClick = { viewModel.setToolMode(TransformToolMode.SELECT_ORBIT) },
-                        tag = "tool_orbit"
-                    )
-                    ToolDockIconButton(
-                        icon = Icons.Default.OpenWith,
-                        label = "Move",
-                        selected = uiState.toolMode == TransformToolMode.MOVE,
-                        onClick = { viewModel.setToolMode(TransformToolMode.MOVE) },
-                        tag = "tool_move"
-                    )
-                    ToolDockIconButton(
-                        icon = Icons.Default.ControlCamera,
-                        label = "Rotate",
-                        selected = uiState.toolMode == TransformToolMode.ROTATE,
-                        onClick = { viewModel.setToolMode(TransformToolMode.ROTATE) },
-                        tag = "tool_rotate"
-                    )
-                    ToolDockIconButton(
-                        icon = Icons.Default.ZoomOutMap,
-                        label = "Scale",
-                        selected = uiState.toolMode == TransformToolMode.SCALE,
-                        onClick = { viewModel.setToolMode(TransformToolMode.SCALE) },
-                        tag = "tool_scale"
-                    )
-
-                    AxisPillButton("XYZ", AxisConstraint.ALL, uiState.axisConstraint, CyberCyan) {
-                        viewModel.setAxisConstraint(AxisConstraint.ALL)
-                    }
-                    AxisPillButton("X", AxisConstraint.X, uiState.axisConstraint, AxisRedX) {
-                        viewModel.setAxisConstraint(AxisConstraint.X)
-                    }
-                    AxisPillButton("Y", AxisConstraint.Y, uiState.axisConstraint, AxisGreenY) {
-                        viewModel.setAxisConstraint(AxisConstraint.Y)
-                    }
-                    AxisPillButton("Z", AxisConstraint.Z, uiState.axisConstraint, AxisBlueZ) {
-                        viewModel.setAxisConstraint(AxisConstraint.Z)
-                    }
-                }
-            }
-
-            // Bottom Area: Compact Floating Shape Bar / Drawer + Bottom Navigation (or Resizable Secondary Sheet)
-            AnimatedVisibility(
-                visible = !isFullScreenImmersive,
-                enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut() + slideOutVertically { it },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    if (uiState.activeTab == StudioTab.VIEWPORT) {
-                        // Ultra-Slim Floating Bottom Bar on Viewport (Collapsed by default so 3D Canvas is HUGE!)
                         Surface(
-                            color = StudioSurface.copy(alpha = 0.86f),
-                            shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
+                            color = Color(0xCC450A0A),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .border(1.dp, AxisRedX.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
+                                .clickable(onClick = viewModel::clearWorkspaceToEmpty)
+                                .testTag("clear_workspace_chip")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteSweep,
+                                    contentDescription = "Clear Workspace",
+                                    tint = AxisRedX,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = if (uiState.isPersian) "خلوت کردن" else "Clear",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFFFCA5A5)
+                                )
+                            }
+                        }
+                    }
+
+                    // Bottom Unified Control Dock (Combines Transform Tools + Quick Shapes in ONE tidy bottom bar)
+                    Surface(
+                        color = StudioSurface.copy(alpha = 0.92f),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                            .border(1.dp, StudioBorder.copy(alpha = 0.85f), RoundedCornerShape(14.dp))
+                    ) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .border(
-                                    1.dp,
-                                    StudioBorder.copy(alpha = 0.8f),
-                                    RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)
-                                )
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            // Row 1: Transform Tools (Orbit / Move / Rotate / Scale) + Axis / Sliders Toggle
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
+                                // 4 Transform Tool Buttons
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
+                                    ToolDockIconButton(
+                                        icon = Icons.Default.CenterFocusStrong,
+                                        label = "Orbit",
+                                        selected = uiState.toolMode == TransformToolMode.SELECT_ORBIT,
+                                        onClick = { viewModel.setToolMode(TransformToolMode.SELECT_ORBIT) },
+                                        tag = "tool_orbit"
+                                    )
+                                    ToolDockIconButton(
+                                        icon = Icons.Default.OpenWith,
+                                        label = "Move",
+                                        selected = uiState.toolMode == TransformToolMode.MOVE,
+                                        onClick = { viewModel.setToolMode(TransformToolMode.MOVE) },
+                                        tag = "tool_move"
+                                    )
+                                    ToolDockIconButton(
+                                        icon = Icons.Default.ControlCamera,
+                                        label = "Rotate",
+                                        selected = uiState.toolMode == TransformToolMode.ROTATE,
+                                        onClick = { viewModel.setToolMode(TransformToolMode.ROTATE) },
+                                        tag = "tool_rotate"
+                                    )
+                                    ToolDockIconButton(
+                                        icon = Icons.Default.ZoomOutMap,
+                                        label = "Scale",
+                                        selected = uiState.toolMode == TransformToolMode.SCALE,
+                                        onClick = { viewModel.setToolMode(TransformToolMode.SCALE) },
+                                        tag = "tool_scale"
+                                    )
+                                }
+
+                                // Contextual Right Side: Axis Filter OR Quick Shapes + Numeric Sliders Toggle
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 6.dp)
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (uiState.toolMode != TransformToolMode.SELECT_ORBIT) {
+                                        AxisPillButton("XYZ", AxisConstraint.ALL, uiState.axisConstraint, CyberCyan) {
+                                            viewModel.setAxisConstraint(AxisConstraint.ALL)
+                                        }
+                                        AxisPillButton("X", AxisConstraint.X, uiState.axisConstraint, AxisRedX) {
+                                            viewModel.setAxisConstraint(AxisConstraint.X)
+                                        }
+                                        AxisPillButton("Y", AxisConstraint.Y, uiState.axisConstraint, AxisGreenY) {
+                                            viewModel.setAxisConstraint(AxisConstraint.Y)
+                                        }
+                                        AxisPillButton("Z", AxisConstraint.Z, uiState.axisConstraint, AxisBlueZ) {
+                                            viewModel.setAxisConstraint(AxisConstraint.Z)
+                                        }
+                                    } else {
                                         val quickPrims = listOf(
                                             PrimitiveType3D.CUBE to (if (uiState.isPersian) "مکعب" else "Cube"),
                                             PrimitiveType3D.SPHERE to (if (uiState.isPersian) "کره" else "Sphere"),
@@ -465,7 +480,7 @@ fun PolyForgeStudioScreen(
                                         quickPrims.forEach { (primType, label) ->
                                             val isActiveType = selectedNode?.typeTag == primType.name && uiState.nodes.size == 1
                                             Surface(
-                                                color = if (isActiveType) CyberCyan.copy(alpha = 0.24f) else StudioSurfaceElevated,
+                                                color = if (isActiveType) CyberCyan.copy(alpha = 0.22f) else StudioSurfaceElevated,
                                                 shape = RoundedCornerShape(8.dp),
                                                 modifier = Modifier
                                                     .border(
@@ -480,266 +495,524 @@ fun PolyForgeStudioScreen(
                                                     text = label,
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = if (isActiveType) CyberCyan else Color.White,
-                                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                                                 )
                                             }
                                         }
                                     }
+                                }
 
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                // Toggle button for exact X/Y/Z numeric sliders
+                                Surface(
+                                    color = if (inspectorExpanded) CyberCyan.copy(alpha = 0.22f) else StudioSurfaceElevated,
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .border(
+                                            1.dp,
+                                            if (inspectorExpanded) CyberCyan else StudioBorder,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { inspectorExpanded = !inspectorExpanded }
+                                        .testTag("toggle_inspector_drawer_btn")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Tune,
+                                            contentDescription = "Toggle XYZ Sliders",
+                                            tint = CyberCyan,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = if (uiState.isPersian) "ابعاد" else "XYZ",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = CyberCyan,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                }
+                            }
 
-                                    // Button to toggle exact X/Y/Z numeric sliders
-                                    Surface(
-                                        color = if (inspectorExpanded) CyberCyan.copy(alpha = 0.22f) else StudioSurfaceElevated,
-                                        shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier
-                                            .border(
-                                                1.dp,
-                                                if (inspectorExpanded) CyberCyan else StudioBorder,
-                                                RoundedCornerShape(8.dp)
+                            // Expandable Precision X/Y/Z Sliders Drawer
+                            AnimatedVisibility(visible = inspectorExpanded && selectedNode != null) {
+                                if (selectedNode != null) {
+                                    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                                        HorizontalDivider(color = StudioBorder.copy(alpha = 0.6f))
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = if (uiState.isPersian)
+                                                    "${selectedNode.nameFa} (${selectedNode.faces.size} مثلث)"
+                                                else
+                                                    "${selectedNode.name} (${selectedNode.faces.size} Tris)",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = Color.White
                                             )
-                                            .clickable { inspectorExpanded = !inspectorExpanded }
-                                            .testTag("toggle_inspector_drawer_btn")
+
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Surface(
+                                                    color = StudioSurfaceElevated,
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier
+                                                        .clickable { viewModel.applySubdivide(true) }
+                                                        .testTag("quick_subdivide_btn")
+                                                ) {
+                                                    Text(
+                                                        text = "Subdivide+",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = CyberCyan,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    )
+                                                }
+
+                                                Surface(
+                                                    color = StudioSurfaceElevated,
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier
+                                                        .clickable { viewModel.duplicateSelectedNode() }
+                                                        .testTag("quick_duplicate_btn")
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.ContentCopy,
+                                                        contentDescription = "Duplicate",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.padding(4.dp).size(14.dp)
+                                                    )
+                                                }
+
+                                                Surface(
+                                                    color = Color(0xFF450A0A),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier
+                                                        .clickable { viewModel.deleteSelectedNode() }
+                                                        .testTag("quick_delete_btn")
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.DeleteOutline,
+                                                        contentDescription = "Delete",
+                                                        tint = AxisRedX,
+                                                        modifier = Modifier.padding(4.dp).size(14.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        val activeMode = if (uiState.toolMode == TransformToolMode.SELECT_ORBIT) {
+                                            TransformToolMode.MOVE
+                                        } else uiState.toolMode
+
+                                        when (activeMode) {
+                                            TransformToolMode.MOVE, TransformToolMode.SELECT_ORBIT -> {
+                                                TransformTripletSliders(
+                                                    prefix = if (uiState.isPersian) "مکان" else "Pos",
+                                                    vec = selectedNode.position,
+                                                    range = -3.5f..3.5f,
+                                                    unitSuffix = "u",
+                                                    onChanged = { viewModel.updateSelectedTransform(position = it) }
+                                                )
+                                            }
+                                            TransformToolMode.ROTATE -> {
+                                                TransformTripletSliders(
+                                                    prefix = if (uiState.isPersian) "چرخش" else "Rot",
+                                                    vec = selectedNode.rotation,
+                                                    range = -180f..180f,
+                                                    unitSuffix = "°",
+                                                    onChanged = { viewModel.updateSelectedTransform(rotation = it) }
+                                                )
+                                            }
+                                            TransformToolMode.SCALE -> {
+                                                TransformTripletSliders(
+                                                    prefix = if (uiState.isPersian) "مقیاس" else "Scale",
+                                                    vec = selectedNode.scale,
+                                                    range = 0.15f..3.2f,
+                                                    unitSuffix = "x",
+                                                    onChanged = { viewModel.updateSelectedTransform(scale = it) }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Secondary Tab View: Clean Split Layout (Live 3D Preview on top + Dedicated Panel below, ZERO overlap)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (!sheetMaximized) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(0.36f)
+                        ) {
+                            Viewport3DCanvas(
+                                nodes = uiState.nodes,
+                                selectedNodeId = uiState.selectedNodeId,
+                                shadingMode = uiState.shadingMode,
+                                lightingPreset = uiState.lightingPreset,
+                                toolMode = uiState.toolMode,
+                                axisConstraint = uiState.axisConstraint,
+                                isOrthographic = uiState.isOrthographic,
+                                showGrid = uiState.showGrid,
+                                showWireframeOverlay = uiState.showWireframeOverlay,
+                                showNormals = uiState.showNormals,
+                                showVertices = uiState.showVertices,
+                                showDimensions = uiState.showDimensions,
+                                autoTurntable = uiState.autoTurntable,
+                                cameraYaw = uiState.cameraYaw,
+                                cameraPitch = uiState.cameraPitch,
+                                cameraZoom = uiState.cameraZoom,
+                                cameraPanX = uiState.cameraPanX,
+                                cameraPanY = uiState.cameraPanY,
+                                engineeringStats = uiState.engineeringStats,
+                                onOrbitCamera = viewModel::orbitCamera,
+                                onZoomPanCamera = viewModel::zoomAndPanCamera,
+                                onTransformSelectedByDrag = viewModel::transformSelectedByViewportDrag,
+                                onSelectNode = viewModel::selectNode,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+
+                    // Active Tab Panel Card
+                    Surface(
+                        color = StudioSurface,
+                        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(if (sheetMaximized) 1f else 0.64f)
+                            .border(
+                                1.dp,
+                                CyberCyan.copy(alpha = 0.35f),
+                                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                            )
+                    ) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // Panel Header Bar
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(StudioSurfaceElevated)
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = if (uiState.isPersian) uiState.activeTab.titleFa else uiState.activeTab.titleEn,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = CyberCyan,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Surface(
+                                        color = StudioSurface,
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.clickable { sheetMaximized = !sheetMaximized }
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
-                                                imageVector = if (inspectorExpanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                                                contentDescription = "Toggle XYZ Sliders",
-                                                tint = CyberCyan,
+                                                imageVector = if (sheetMaximized) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                                                contentDescription = "Resize panel",
+                                                tint = Color.White,
                                                 modifier = Modifier.size(16.dp)
                                             )
-                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
                                             Text(
-                                                text = if (uiState.isPersian) "ابعاد دقیق" else "XYZ",
+                                                text = if (sheetMaximized)
+                                                    (if (uiState.isPersian) "پیش‌نمایش 3D" else "Show 3D")
+                                                else
+                                                    (if (uiState.isPersian) "تمام‌صفحه پنل" else "Expand"),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        color = CyberCyan.copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .clickable { viewModel.selectTab(StudioTab.VIEWPORT) }
+                                            .testTag("close_secondary_sheet_btn")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Back to 3D Workspace",
+                                                tint = CyberCyan,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = if (uiState.isPersian) "میز کار 3D" else "3D View",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = CyberCyan
                                             )
                                         }
                                     }
                                 }
+                            }
 
-                                AnimatedVisibility(visible = inspectorExpanded && selectedNode != null) {
-                                    if (selectedNode != null) {
-                                        Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Text(
-                                                    text = if (uiState.isPersian)
-                                                        "${selectedNode.nameFa} (${selectedNode.faces.size} مثلث)"
-                                                    else
-                                                        "${selectedNode.name} (${selectedNode.faces.size} Tris)",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = Color.White
-                                                )
-
-                                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                    Surface(
-                                                        color = StudioSurfaceElevated,
-                                                        shape = RoundedCornerShape(8.dp),
-                                                        modifier = Modifier
-                                                            .clickable { viewModel.applySubdivide(true) }
-                                                            .testTag("quick_subdivide_btn")
-                                                    ) {
-                                                        Text(
-                                                            text = "Subdivide+",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = CyberCyan,
-                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                                        )
-                                                    }
-
-                                                    Surface(
-                                                        color = StudioSurfaceElevated,
-                                                        shape = RoundedCornerShape(8.dp),
-                                                        modifier = Modifier
-                                                            .clickable { viewModel.duplicateSelectedNode() }
-                                                            .testTag("quick_duplicate_btn")
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.ContentCopy,
-                                                            contentDescription = "Duplicate",
-                                                            tint = Color.White,
-                                                            modifier = Modifier.padding(4.dp).size(14.dp)
-                                                        )
-                                                    }
-
-                                                    Surface(
-                                                        color = Color(0xFF450A0A),
-                                                        shape = RoundedCornerShape(8.dp),
-                                                        modifier = Modifier
-                                                            .clickable { viewModel.deleteSelectedNode() }
-                                                            .testTag("quick_delete_btn")
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.DeleteOutline,
-                                                            contentDescription = "Delete",
-                                                            tint = AxisRedX,
-                                                            modifier = Modifier.padding(4.dp).size(14.dp)
-                                                        )
-                                                    }
-                                                }
-                                            }
-
-                                            val activeMode = if (uiState.toolMode == TransformToolMode.SELECT_ORBIT) {
-                                                TransformToolMode.MOVE
-                                            } else uiState.toolMode
-
-                                            when (activeMode) {
-                                                TransformToolMode.MOVE, TransformToolMode.SELECT_ORBIT -> {
-                                                    TransformTripletSliders(
-                                                        prefix = if (uiState.isPersian) "مکان" else "Pos",
-                                                        vec = selectedNode.position,
-                                                        range = -3.5f..3.5f,
-                                                        unitSuffix = "u",
-                                                        onChanged = { viewModel.updateSelectedTransform(position = it) }
-                                                    )
-                                                }
-                                                TransformToolMode.ROTATE -> {
-                                                    TransformTripletSliders(
-                                                        prefix = if (uiState.isPersian) "چرخش" else "Rot",
-                                                        vec = selectedNode.rotation,
-                                                        range = -180f..180f,
-                                                        unitSuffix = "°",
-                                                        onChanged = { viewModel.updateSelectedTransform(rotation = it) }
-                                                    )
-                                                }
-                                                TransformToolMode.SCALE -> {
-                                                    TransformTripletSliders(
-                                                        prefix = if (uiState.isPersian) "مقیاس" else "Scale",
-                                                        vec = selectedNode.scale,
-                                                        range = 0.15f..3.2f,
-                                                        unitSuffix = "x",
-                                                        onChanged = { viewModel.updateSelectedTransform(scale = it) }
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                ActiveSecondaryTabContent(
+                                    uiState = uiState,
+                                    selectedNode = selectedNode,
+                                    savedProjects = savedProjects,
+                                    recentExports = recentExports,
+                                    viewModel = viewModel,
+                                    context = context,
+                                    onLaunchSaveFile = { fileName -> saveDocumentLauncher.launch(fileName) },
+                                    onLaunchShareFile = { viewModel.shareExportFile(context) },
+                                    onLaunchImportFile = { openDocumentLauncher.launch(arrayOf("*/*")) },
+                                    onLaunchImportPhotoTexture = {
+                                        photoTextureLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                    onLaunchImportPhotoTo3D = {
+                                        photoTo3DReliefLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                    onOpenLiveWebStudio = { showWebStudioPreview = true },
+                                    onShareStandaloneWebHtml = { viewModel.shareStandaloneWebHtml(context) },
+                                    onSaveAndroidApkFile = { apkFileName -> saveApkLauncher.launch(apkFileName) },
+                                    onShareAndroidApkFile = { viewModel.shareInstalledApk(context) }
+                                )
                             }
                         }
-                    } else {
-                        // Secondary Tab Overlay Bottom Sheet over the Full-Screen 3D Viewport!
-                        Surface(
-                            color = StudioSurface.copy(alpha = 0.96f),
-                            shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight(if (sheetMaximized) 0.82f else 0.54f)
-                                .border(
-                                    1.dp,
-                                    CyberCyan.copy(alpha = 0.4f),
-                                    RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
-                                )
+                    }
+                }
+            }
+        }
+
+        // 3. Bottom Navigation Bar (Hidden in Immersive Full-Screen mode)
+        if (!isFullScreenImmersive) {
+            StudioBottomNavigationBar(
+                activeTab = uiState.activeTab,
+                isPersian = uiState.isPersian,
+                onSelectTab = viewModel::selectTab
+            )
+        }
+    }
+
+    if (showQuickImportDialog) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showQuickImportDialog = false }) {
+            Surface(
+                color = StudioSurfaceElevated,
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.5.dp, CyberCyan, RoundedCornerShape(20.dp))
+                    .testTag("quick_import_dialog")
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (uiState.isPersian)
+                                "وارد کردن فایل سه‌بعدی و عکس (Import)"
+                            else
+                                "Import 3D File & Photo",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = CyberCyan,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { showQuickImportDialog = false },
+                            modifier = Modifier.size(28.dp)
                         ) {
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                // Sheet Grabber & Minimize/Close Header
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(StudioSurfaceElevated)
-                                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = if (uiState.isPersian) uiState.activeTab.titleFa else uiState.activeTab.titleEn,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = CyberCyan,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        }
+                    }
 
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Surface(
-                                            color = StudioSurface,
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.clickable { sheetMaximized = !sheetMaximized }
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = if (sheetMaximized) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                                                    contentDescription = "Resize panel",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = if (sheetMaximized)
-                                                        (if (uiState.isPersian) "نیم‌صفحه 3D" else "Half Sheet")
-                                                    else
-                                                        (if (uiState.isPersian) "بازتر کردن پنل" else "Expand"),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
+                    Text(
+                        text = if (uiState.isPersian)
+                            "یک فایل سه‌بعدی از حافظه گوشی وارد کنید یا عکس‌های گالری را به مدل سه‌بعدی برجسته و تکسچر تبدیل نمایید:"
+                        else
+                            "Choose a 3D file from storage or select a photo from gallery:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
 
-                                        Surface(
-                                            color = CyberCyan.copy(alpha = 0.2f),
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier
-                                                .clickable { viewModel.selectTab(StudioTab.VIEWPORT) }
-                                                .testTag("close_secondary_sheet_btn")
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Close,
-                                                    contentDescription = "Back to Fullscreen 3D",
-                                                    tint = CyberCyan,
-                                                    modifier = Modifier.size(15.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = if (uiState.isPersian) "تمام‌صفحه 3D" else "Full 3D",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = CyberCyan
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                                    ActiveSecondaryTabContent(
-                                        uiState = uiState,
-                                        selectedNode = selectedNode,
-                                        savedProjects = savedProjects,
-                                        recentExports = recentExports,
-                                        viewModel = viewModel,
-                                        context = context,
-                                        onLaunchSaveFile = { fileName -> saveDocumentLauncher.launch(fileName) },
-                                        onLaunchShareFile = { viewModel.shareExportFile(context) },
-                                        onLaunchImportFile = { openDocumentLauncher.launch(arrayOf("*/*")) }
-                                    )
-                                }
+                    Surface(
+                        color = CyberCyan.copy(alpha = 0.18f),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, CyberCyan, RoundedCornerShape(14.dp))
+                            .clickable {
+                                showQuickImportDialog = false
+                                openDocumentLauncher.launch(arrayOf("*/*"))
+                            }
+                            .testTag("dialog_import_3d_file_btn")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.FileOpen, contentDescription = null, tint = CyberCyan)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (uiState.isPersian)
+                                        "📂 وارد کردن فایل سه‌بعدی (.GLB, .STL, .OBJ, .PLY)"
+                                    else
+                                        "Import 3D Model File (.GLB, .STL, .OBJ, .PLY)",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (uiState.isPersian)
+                                        "بارگذاری مستقیم مدل‌های سه‌بعدی در مرکز میز کار"
+                                    else
+                                        "Load 3D meshes directly onto the workspace",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
                             }
                         }
                     }
 
-                    // Bottom Navigation Bar
-                    StudioBottomNavigationBar(
-                        activeTab = uiState.activeTab,
-                        isPersian = uiState.isPersian,
-                        onSelectTab = viewModel::selectTab
-                    )
+                    Surface(
+                        color = SculptAmber.copy(alpha = 0.18f),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, SculptAmber, RoundedCornerShape(14.dp))
+                            .clickable {
+                                showQuickImportDialog = false
+                                photoTo3DReliefLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            }
+                            .testTag("dialog_photo_to_3d_btn")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Image, contentDescription = null, tint = SculptAmber)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (uiState.isPersian)
+                                        "🏔️ تبدیل عکس گالری به مدل سه‌بعدی برجسته (Photo to 3D)"
+                                    else
+                                        "Convert Photo to 3D Relief Model",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (uiState.isPersian)
+                                        "ساخت مش سه‌بعدی برجسته (Heightmap / Lithophane) از هر عکس یا لوگو"
+                                    else
+                                        "Generate a 3D heightmap relief mesh from any photo or logo",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
+
+                    Surface(
+                        color = ManifoldEmerald.copy(alpha = 0.18f),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, ManifoldEmerald, RoundedCornerShape(14.dp))
+                            .clickable {
+                                showQuickImportDialog = false
+                                photoTextureLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            }
+                            .testTag("dialog_photo_texture_btn")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Brush, contentDescription = null, tint = ManifoldEmerald)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (uiState.isPersian)
+                                        "🖼️ اعمال عکس گالری به عنوان تکسچر روی مدل فعلی"
+                                    else
+                                        "Apply Gallery Photo as 3D Surface Texture",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (uiState.isPersian)
+                                        "پوشاندن سطح مدل سه‌بعدی فعلی با عکس دلخواه از گالری"
+                                    else
+                                        "Wrap any gallery image onto the active 3D model",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+
+    if (showWebStudioPreview) {
+        val webHtml = remember(uiState.nodes, uiState.projectName) {
+            viewModel.generateCurrentWebStudioHtml()
+        }
+        WebStudioPreviewDialog(
+            isPersian = uiState.isPersian,
+            projectName = uiState.projectName,
+            htmlContent = webHtml,
+            apkSizeKb = uiState.installedApkSizeKb,
+            onDismiss = { showWebStudioPreview = false },
+            onSaveWebHtmlFile = { fileName ->
+                viewModel.selectExportFormat(ExportFormat3D.HTML_WEB3D)
+                saveDocumentLauncher.launch(fileName)
+            },
+            onShareWebHtmlFile = {
+                viewModel.shareStandaloneWebHtml(context)
+            },
+            onSaveAndroidApkFile = { apkFileName ->
+                saveApkLauncher.launch(apkFileName)
+            },
+            onShareAndroidApkFile = {
+                viewModel.shareInstalledApk(context)
+            }
+        )
     }
 }
 
@@ -753,7 +1026,13 @@ private fun ActiveSecondaryTabContent(
     context: android.content.Context,
     onLaunchSaveFile: (String) -> Unit,
     onLaunchShareFile: () -> Unit,
-    onLaunchImportFile: () -> Unit
+    onLaunchImportFile: () -> Unit,
+    onLaunchImportPhotoTexture: () -> Unit,
+    onLaunchImportPhotoTo3D: () -> Unit,
+    onOpenLiveWebStudio: () -> Unit,
+    onShareStandaloneWebHtml: () -> Unit,
+    onSaveAndroidApkFile: (String) -> Unit,
+    onShareAndroidApkFile: () -> Unit
 ) {
     when (uiState.activeTab) {
         StudioTab.LIBRARY -> {
@@ -763,7 +1042,10 @@ private fun ActiveSecondaryTabContent(
                     viewModel.addPrimitive(prim, appendToScene = false)
                     viewModel.selectTab(StudioTab.VIEWPORT)
                 },
-                onLoadPreset = viewModel::loadReadyModelPreset
+                onLoadPreset = viewModel::loadReadyModelPreset,
+                onImport3DFile = onLaunchImportFile,
+                onImportPhotoTo3D = onLaunchImportPhotoTo3D,
+                onImportPhotoTexture = onLaunchImportPhotoTexture
             )
         }
         StudioTab.SCULPT_MESH -> {
@@ -798,7 +1080,9 @@ private fun ActiveSecondaryTabContent(
                 onAddPaintStroke = viewModel::addPaintStrokeToSelected,
                 onClearPaintStrokes = viewModel::clearPaintStrokesOnSelected,
                 onRandomizeTexture = viewModel::randomizeProceduralTexture,
-                onExportTexturePng = { viewModel.shareCurrentTextureAsPng(context) }
+                onExportTexturePng = { viewModel.shareCurrentTextureAsPng(context) },
+                onImportPhotoTexture = onLaunchImportPhotoTexture,
+                onImportPhotoTo3D = onLaunchImportPhotoTo3D
             )
         }
         StudioTab.EXPORT_PROJECTS -> {
@@ -809,14 +1093,21 @@ private fun ActiveSecondaryTabContent(
                 exportPayload = uiState.activeExportPayload,
                 savedProjects = savedProjects,
                 recentExports = recentExports,
+                isOnline = uiState.isOnline,
+                apkSizeKb = uiState.installedApkSizeKb,
                 onUpdateProjectName = viewModel::updateProjectName,
                 onSelectFormat = viewModel::selectExportFormat,
                 onRequestSaveFileToDevice = { _, fileName -> onLaunchSaveFile(fileName) },
                 onShareExportFile = onLaunchShareFile,
                 onRequestImportFile = onLaunchImportFile,
+                onImportOnlineUrl = viewModel::importModelFromOnlineUrl,
                 onSaveProjectToRoom = { viewModel.saveCurrentProjectToRoom() },
                 onLoadProjectFromRoom = viewModel::loadProjectFromRoom,
-                onDeleteProjectFromRoom = viewModel::deleteProjectFromRoom
+                onDeleteProjectFromRoom = viewModel::deleteProjectFromRoom,
+                onOpenLiveWebStudio = onOpenLiveWebStudio,
+                onShareStandaloneWebHtml = onShareStandaloneWebHtml,
+                onSaveAndroidApkFile = onSaveAndroidApkFile,
+                onShareAndroidApkFile = onShareAndroidApkFile
             )
         }
         StudioTab.VIEWPORT -> Unit
@@ -824,17 +1115,19 @@ private fun ActiveSecondaryTabContent(
 }
 
 @Composable
-private fun StudioFloatingTopBar(
+private fun StudioTopHeaderBar(
     uiState: StudioUiState,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
-    onToggleLanguage: () -> Unit,
     onEnterFullScreen: () -> Unit,
+    onQuickImportClick: () -> Unit,
+    onQuickPhotoClick: () -> Unit,
+    onQuickWebClick: () -> Unit,
     onQuickTextureClick: () -> Unit,
     onQuickExportClick: () -> Unit
 ) {
     Surface(
-        color = StudioSurface.copy(alpha = 0.82f),
+        color = StudioSurface,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -844,103 +1137,161 @@ private fun StudioFloatingTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            // Compact Brand + Mesh Counter
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(end = 6.dp)
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(9.dp))
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(CyberCyan.copy(alpha = 0.18f))
-                        .border(1.dp, CyberCyan.copy(alpha = 0.5f), RoundedCornerShape(9.dp)),
+                        .border(1.dp, CyberCyan.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.ViewInAr,
                         contentDescription = "PolyForge 3D",
                         tint = CyberCyan,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Column {
                     Text(
                         text = "PolyForge 3D",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.labelLarge,
                         color = Color.White,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                     Text(
                         text = String.format(
                             Locale.US,
-                            "%d Verts • %d Tris",
+                            "%dV • %dT",
                             uiState.engineeringStats.totalVertices,
                             uiState.engineeringStats.totalTriangles
                         ),
                         style = MaterialTheme.typography.labelSmall,
-                        color = CyberCyan
+                        color = CyberCyan,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
 
+            // Horizontally Scrollable Action Bar so buttons never wrap or squish on narrow phones
             Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 IconButton(
                     onClick = onUndo,
                     enabled = uiState.canUndo,
-                    modifier = Modifier.size(36.dp).testTag("undo_button")
+                    modifier = Modifier.size(30.dp).testTag("undo_button")
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Undo,
                         contentDescription = "Undo",
                         tint = if (uiState.canUndo) Color.White else TextSecondary.copy(alpha = 0.35f),
-                        modifier = Modifier.size(19.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
 
                 IconButton(
                     onClick = onRedo,
                     enabled = uiState.canRedo,
-                    modifier = Modifier.size(36.dp).testTag("redo_button")
+                    modifier = Modifier.size(30.dp).testTag("redo_button")
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Redo,
                         contentDescription = "Redo",
                         tint = if (uiState.canRedo) Color.White else TextSecondary.copy(alpha = 0.35f),
-                        modifier = Modifier.size(19.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
 
-                // Full-Screen Immersive Button (Hides all bars for 100% pure 3D workspace)
+                // Full-Screen Immersive Button
+                IconButton(
+                    onClick = onEnterFullScreen,
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(CyberCyan.copy(alpha = 0.16f))
+                        .testTag("fullscreen_toggle_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Fullscreen,
+                        contentDescription = "Full Screen 3D",
+                        tint = CyberCyan,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+
+                // Quick Import File & Photo Pill
                 Surface(
                     color = CyberCyan.copy(alpha = 0.2f),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier
                         .border(1.dp, CyberCyan, RoundedCornerShape(8.dp))
-                        .clickable(onClick = onEnterFullScreen)
-                        .testTag("fullscreen_toggle_button")
+                        .clickable(onClick = onQuickImportClick)
+                        .testTag("quick_import_button")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Fullscreen,
-                            contentDescription = "Full Screen 3D",
+                            imageVector = Icons.Default.FileOpen,
+                            contentDescription = "Import File or Photo",
                             tint = CyberCyan,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = if (uiState.isPersian) "تمام‌صفحه" else "Full",
+                            text = if (uiState.isPersian) "وارد کردن فایل/عکس" else "Import",
                             style = MaterialTheme.typography.labelSmall,
                             color = CyberCyan,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(4.dp))
+                // Quick Standalone Web / APK Pill
+                Surface(
+                    color = ManifoldEmerald.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .border(1.dp, ManifoldEmerald, RoundedCornerShape(8.dp))
+                        .clickable(onClick = onQuickWebClick)
+                        .testTag("quick_web_button")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Language,
+                            contentDescription = "Web & APK",
+                            tint = ManifoldEmerald,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = if (uiState.isPersian) "وب/APK" else "Web",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ManifoldEmerald,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
 
                 Surface(
                     color = SculptAmber.copy(alpha = 0.2f),
@@ -951,26 +1302,26 @@ private fun StudioFloatingTopBar(
                         .testTag("quick_texture_button")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Brush,
                             contentDescription = "Texture Studio",
                             tint = SculptAmber,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = if (uiState.isPersian) "تکسچر" else "Tex",
                             style = MaterialTheme.typography.labelSmall,
                             color = SculptAmber,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.width(4.dp))
 
                 Surface(
                     color = CyberCyan,
@@ -980,21 +1331,23 @@ private fun StudioFloatingTopBar(
                         .testTag("quick_export_button")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Download,
                             contentDescription = "Export GLB/STL",
                             tint = Color(0xFF00242B),
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
-                        Spacer(modifier = Modifier.width(3.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
                         Text(
-                            text = "GLB/STL",
+                            text = "GLB",
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFF00242B),
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -1089,13 +1442,13 @@ private fun HudChip(
     tag: String
 ) {
     Surface(
-        color = if (active) CyberCyan.copy(alpha = 0.25f) else StudioSurface.copy(alpha = 0.78f),
-        shape = RoundedCornerShape(10.dp),
+        color = if (active) CyberCyan.copy(alpha = 0.25f) else StudioSurface.copy(alpha = 0.85f),
+        shape = RoundedCornerShape(8.dp),
         modifier = Modifier
             .border(
                 1.dp,
-                if (active) CyberCyan else StudioBorder.copy(alpha = 0.7f),
-                RoundedCornerShape(10.dp)
+                if (active) CyberCyan else StudioBorder.copy(alpha = 0.75f),
+                RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)
             .testTag(tag)
@@ -1104,7 +1457,9 @@ private fun HudChip(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = if (active) CyberCyan else Color.White,
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
         )
     }
 }
@@ -1119,9 +1474,14 @@ private fun ToolDockIconButton(
 ) {
     Box(
         modifier = Modifier
-            .size(38.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) CyberCyan else Color.Transparent)
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) CyberCyan else StudioSurfaceElevated)
+            .border(
+                1.dp,
+                if (selected) CyberCyan else StudioBorder,
+                RoundedCornerShape(8.dp)
+            )
             .clickable(onClick = onClick)
             .testTag(tag),
         contentAlignment = Alignment.Center
@@ -1130,7 +1490,7 @@ private fun ToolDockIconButton(
             imageVector = icon,
             contentDescription = label,
             tint = if (selected) Color(0xFF00242B) else Color.White,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(17.dp)
         )
     }
 }
@@ -1146,23 +1506,25 @@ private fun AxisPillButton(
     val selected = axis == current
     Box(
         modifier = Modifier
-            .width(36.dp)
-            .height(24.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .height(28.dp)
+            .clip(RoundedCornerShape(7.dp))
             .background(if (selected) color.copy(alpha = 0.28f) else StudioSurfaceElevated)
             .border(
                 1.dp,
-                if (selected) color else Color.Transparent,
-                RoundedCornerShape(6.dp)
+                if (selected) color else StudioBorder,
+                RoundedCornerShape(7.dp)
             )
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = if (selected) color else TextSecondary,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false
         )
     }
 }
@@ -1174,8 +1536,9 @@ private fun StudioBottomNavigationBar(
     onSelectTab: (StudioTab) -> Unit
 ) {
     NavigationBar(
-        containerColor = StudioSurface.copy(alpha = 0.92f),
+        containerColor = StudioSurface,
         tonalElevation = 4.dp,
+        windowInsets = WindowInsets(0, 0, 0, 0),
         modifier = Modifier.height(64.dp)
     ) {
         val items = listOf(
@@ -1193,14 +1556,15 @@ private fun StudioBottomNavigationBar(
                     Icon(
                         imageVector = icon,
                         contentDescription = tab.titleEn,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 },
                 label = {
                     Text(
                         text = if (isPersian) tab.titleFa else tab.titleEn,
                         style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1
+                        maxLines = 1,
+                        softWrap = false
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(

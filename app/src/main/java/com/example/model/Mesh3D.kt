@@ -116,7 +116,8 @@ enum class TextureType(
     RUST_WEATHERED("فلز زنگ‌زده و کهنه‌کاری", "Weathered Rust", 0xFFEA580C, 0xFF431407),
     BRICK_TILES("آجرنمای معماری و کاشی", "Architectural Brick", 0xFFEF4444, 0xFF1E293B),
     CAMO_TACTICAL("استتار تاکتیکی (Camo)", "Tactical Camouflage", 0xFF22C55E, 0xFF14532D),
-    CUSTOM_PAINT("نقاشی دستی روی تکسچر (Paint)", "Custom Hand-Painted", 0xFF38BDF8, 0xFFF43F5E)
+    CUSTOM_PAINT("نقاشی دستی روی تکسچر (Paint)", "Custom Hand-Painted", 0xFF38BDF8, 0xFFF43F5E),
+    PHOTO_TEXTURE("عکس گالری (Photo Texture)", "Imported Photo Texture", 0xFFFFFFFF, 0xFF1E293B)
 }
 
 /**
@@ -179,10 +180,12 @@ data class PbrMaterial(
     val textureScale: Float = 4.0f,
     val textureBlend: Float = 0.85f,
     val uvMappingMode: UvMappingMode = UvMappingMode.TRIPLANAR_BOX,
-    val paintStrokes: List<CustomPaintStroke> = emptyList()
+    val paintStrokes: List<CustomPaintStroke> = emptyList(),
+    val customPhotoPixels: List<Int> = emptyList(),
+    val customPhotoSize: Int = 0
 ) {
     fun hasActiveTexture(): Boolean =
-        textureType != TextureType.NONE || paintStrokes.isNotEmpty()
+        textureType != TextureType.NONE || paintStrokes.isNotEmpty() || customPhotoPixels.isNotEmpty()
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("name", name)
@@ -204,6 +207,12 @@ data class PbrMaterial(
             paintStrokes.forEach { sArr.put(it.toJson()) }
             put("paintStrokes", sArr)
         }
+        if (customPhotoPixels.isNotEmpty() && customPhotoSize > 0) {
+            put("customPhotoSize", customPhotoSize)
+            val pArr = JSONArray()
+            customPhotoPixels.forEach { pArr.put(it) }
+            put("customPhotoPixels", pArr)
+        }
     }
 
     companion object {
@@ -218,6 +227,16 @@ data class PbrMaterial(
                 ArrayList<CustomPaintStroke>(strokesArr.length()).apply {
                     for (i in 0 until strokesArr.length()) {
                         strokesArr.optJSONArray(i)?.let { add(CustomPaintStroke.fromJson(it)) }
+                    }
+                }
+            } else emptyList()
+
+            val photoSize = obj.optInt("customPhotoSize", 0)
+            val photoArr = obj.optJSONArray("customPhotoPixels")
+            val photoPixels = if (photoArr != null && photoSize > 0) {
+                ArrayList<Int>(photoArr.length()).apply {
+                    for (i in 0 until photoArr.length()) {
+                        add(photoArr.optInt(i, 0xFF00E5FF.toInt()))
                     }
                 }
             } else emptyList()
@@ -237,7 +256,9 @@ data class PbrMaterial(
                 textureScale = obj.optDouble("textureScale", 4.0).toFloat(),
                 textureBlend = obj.optDouble("textureBlend", 0.85).toFloat(),
                 uvMappingMode = uvMode,
-                paintStrokes = strokes
+                paintStrokes = strokes,
+                customPhotoPixels = photoPixels,
+                customPhotoSize = photoSize
             )
         }
     }
@@ -478,5 +499,21 @@ enum class ExportFormat3D(
         titleEn = "Stanford PLY (Baked Texture RGB)",
         subtitleFa = "ذخیره دقیق رئوس، بردارهای نرمال و رنگ پخته‌شده تکسچر روی هر رأس (Baked Vertex Color)",
         badge = "Vertex Color"
+    ),
+    HTML_WEB3D(
+        ext = "html",
+        mimeType = "text/html",
+        titleFa = "فایل وب سه‌بعدی تعاملی و استودیو تحت وب (Web 3D .HTML)",
+        titleEn = "Interactive Web 3D Studio (.HTML)",
+        subtitleFa = "فایل تک‌صفحه‌ای کامل تحت وب (HTML5 + 3D Canvas) قابل اجرا در تمام مرورگرهای موبایل و دسکتاپ بدون نیاز به نصب یا سرور",
+        badge = "Web App / HTML5"
+    ),
+    GLTF_WEB(
+        ext = "gltf",
+        mimeType = "model/gltf+json",
+        titleFa = "فرمت استاندارد وب glTF 2.0 (.GLTF JSON)",
+        titleEn = "Web glTF 2.0 Embedded (.GLTF)",
+        subtitleFa = "فایل استاندارد JSON وب با بافر Base64 توکار، آماده استفاده در Three.js، Babylon.js، WebXR و <model-viewer>",
+        badge = "Three.js / WebGL"
     )
 }

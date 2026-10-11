@@ -183,12 +183,30 @@ object TextureEngine {
             TextureType.CUSTOM_PAINT -> {
                 patternFactor = 0f
             }
+            TextureType.PHOTO_TEXTURE -> {
+                patternFactor = 0f
+            }
         }
 
         val effectiveFactor = (patternFactor * blend).coerceIn(0f, 1f)
         var outR = primary.red * (1f - effectiveFactor) + secondary.red * effectiveFactor
         var outG = primary.green * (1f - effectiveFactor) + secondary.green * effectiveFactor
         var outB = primary.blue * (1f - effectiveFactor) + secondary.blue * effectiveFactor
+
+        // Sample imported photo pixels if present
+        if (material.customPhotoPixels.isNotEmpty() && material.customPhotoSize > 0) {
+            val dim = material.customPhotoSize
+            val px = ((u * (dim - 1)).toInt()).coerceIn(0, dim - 1)
+            val py = (((1f - v) * (dim - 1)).toInt()).coerceIn(0, dim - 1)
+            val idx = (py * dim + px).coerceIn(0, material.customPhotoPixels.lastIndex)
+            val argb = material.customPhotoPixels[idx]
+            val pr = ((argb shr 16) and 0xFF) / 255f
+            val pg = ((argb shr 8) and 0xFF) / 255f
+            val pb = (argb and 0xFF) / 255f
+            outR = outR * (1f - blend) + pr * blend
+            outG = outG * (1f - blend) + pg * blend
+            outB = outB * (1f - blend) + pb * blend
+        }
 
         if (material.paintStrokes.isNotEmpty()) {
             for (stroke in material.paintStrokes) {
@@ -255,5 +273,135 @@ object TextureEngine {
         val out = ByteArrayOutputStream()
         bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
         return out.toByteArray()
+    }
+
+    /**
+     * Downsamples an imported Bitmap into a square pixel grid (default 48x48) for fast real-time 3D UV sampling.
+     */
+    fun extractPhotoPixelsGrid(bitmap: Bitmap, gridSize: Int = 48): List<Int> {
+        val scaled = Bitmap.createScaledBitmap(bitmap, gridSize, gridSize, true)
+        val arr = IntArray(gridSize * gridSize)
+        scaled.getPixels(arr, 0, gridSize, 0, 0, gridSize, gridSize)
+        return arr.toList()
+    }
+
+    /**
+     * Converts an imported 2D photo/image into a watertight 3D Relief / Heightmap / Lithophane Mesh
+     * with a solid backing plate and baked photo colors.
+     */
+    fun create3DReliefMeshFromPhoto(
+        bitmap: Bitmap,
+        displayName: String,
+        gridRes: Int = 34,
+        reliefHeight: Float = 0.42f
+    ): com.example.model.SceneNode3D {
+        val res = gridRes.coerceIn(16, 56)
+        val scaled = Bitmap.createScaledBitmap(bitmap, res, res, true)
+        val pixels = IntArray(res * res)
+        scaled.getPixels(pixels, 0, res, 0, 0, res, res)
+
+        val verts = ArrayList<Vec3>(res * res * 2)
+        val faces = ArrayList<com.example.model.TriangleFace>((res - 1) * (res - 1) * 4 + res * 8)
+        val halfSpan = 1.05f
+        val baseY = -0.14f
+
+        // 1. Top relief vertices displaced by pixel luminance
+        for (gy in 0 until res) {
+            val v = gy.toFloat() / (res - 1).toFloat()
+            val z = (v - 0.5f) * 2f * halfSpan
+            for (gx in 0 until res) {
+                val u = gx.toFloat() / (res - 1).toFloat()
+                val x = (u - 0.5f) * 2f * halfSpan
+                val argb = pixels[gy * res + gx]
+                val r = ((argb shr 16) and 0xFF) / 255f
+                val g = ((argb shr 8) and 0xFF) / 255f
+                val b = (argb and 0xFF) / 255f
+                val lum = (0.299f * r + 0.587f * g + 0.114f * b).coerceIn(0f, 1f)
+                val y = 0.04f + lum * reliefHeight
+                verts.add(Vec3(x, y, z))
+            }
+        }
+
+        // 2. Bottom flat base vertices for watertight 3D printability
+        val bottomOffset = verts.size
+        for (gy in 0 until res) {
+            val v = gy.toFloat() / (res - 1).toFloat()
+            val z = (v - 0.5f) * 2f * halfSpan
+            for (gx in 0 until res) {
+                val u = gx.toFloat() / (res - 1).toFloat()
+                val x = (u - 0.5f) * 2f * halfSpan
+                verts.add(Vec3(x, baseY, z))
+            }
+        }
+
+        // 3. Top and Bottom grid triangles
+        for (gy in 0 until res - 1) {
+            for (gx in 0 until res - 1) {
+                val i00 = gy * res + gx
+                val i10 = i00 + 1
+                val i01 = (gy + 1) * res + gx
+                val i11 = i01 + 1
+
+                faces.add(com.example.model.TriangleFace(i00, i01, i10))
+                faces.add(com.example.model.TriangleFace(i10, i01, i11))
+
+                val b00 = bottomOffset + i00
+                val b10 = bottomOffset + i10
+                val b01 = bottomOffset + i01
+                val b11 = bottomOffset + i11
+                faces.add(com.example.model.TriangleFace(b00, b10, b01))
+                faces.add(com.example.model.TriangleFace(b10, b11, b01))
+            }
+        }
+
+        // 4. Side walls stitching top relief to bottom base
+        for (i in 0 until res - 1) {
+            // Front & Back edges
+            val tFront0 = i; val tFront1 = i + 1
+            val bFront0 = bottomOffset + tFront0; val bFront1 = bottomOffset + tFront1
+            faces.add(com.example.model.TriangleFace(tFront0, tFront1, bFront1))
+            faces.add(com.example.model.TriangleFace(tFront0, bFront1, bFront0))
+
+            val tBack0 = (res - 1) * res + i; val tBack1 = tBack0 + 1
+            val bBack0 = bottomOffset + tBack0; val bBack1 = bottomOffset + tBack1
+            faces.add(com.example.model.TriangleFace(tBack1, tBack0, bBack0))
+            faces.add(com.example.model.TriangleFace(tBack1, bBack0, bBack1))
+
+            // Left & Right edges
+            val tLeft0 = i * res; val tLeft1 = (i + 1) * res
+            val bLeft0 = bottomOffset + tLeft0; val bLeft1 = bottomOffset + tLeft1
+            faces.add(com.example.model.TriangleFace(tLeft1, tLeft0, bLeft0))
+            faces.add(com.example.model.TriangleFace(tLeft1, bLeft0, bLeft1))
+
+            val tRight0 = i * res + (res - 1); val tRight1 = (i + 1) * res + (res - 1)
+            val bRight0 = bottomOffset + tRight0; val bRight1 = bottomOffset + tRight1
+            faces.add(com.example.model.TriangleFace(tRight0, tRight1, bRight1))
+            faces.add(com.example.model.TriangleFace(tRight0, bRight1, bRight0))
+        }
+
+        val texGrid = extractPhotoPixelsGrid(bitmap, 48)
+        val cleanTitle = displayName.substringBeforeLast('.').ifBlank { "Photo_Relief_3D" }
+
+        return com.example.model.SceneNode3D(
+            id = "photo3d_${java.util.UUID.randomUUID().toString().take(6)}",
+            name = "3D Photo Relief ($cleanTitle)",
+            nameFa = "مدل سه‌بعدی عکس ($cleanTitle)",
+            typeTag = "Photo3D",
+            vertices = verts,
+            faces = faces,
+            material = PbrMaterial(
+                name = "Photo Relief Material",
+                nameFa = "تکسچر عکس واردشده",
+                baseColorHex = 0xFFFFFFFF,
+                metallic = 0.18f,
+                roughness = 0.35f,
+                textureType = TextureType.PHOTO_TEXTURE,
+                textureScale = 1.0f,
+                textureBlend = 0.96f,
+                uvMappingMode = UvMappingMode.TRIPLANAR_BOX,
+                customPhotoPixels = texGrid,
+                customPhotoSize = 48
+            )
+        )
     }
 }

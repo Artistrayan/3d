@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
@@ -61,6 +62,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -114,6 +116,8 @@ fun MaterialAndLightPanel(
     onClearPaintStrokes: () -> Unit,
     onRandomizeTexture: () -> Unit,
     onExportTexturePng: () -> Unit,
+    onImportPhotoTexture: () -> Unit = {},
+    onImportPhotoTo3D: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val curatedMaterials = remember { PrimitiveGenerator.curatedMaterials }
@@ -229,6 +233,42 @@ fun MaterialAndLightPanel(
                             )
 
                             Button(
+                                onClick = onImportPhotoTexture,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ManifoldEmerald,
+                                    contentColor = Color(0xFF002417)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("import_photo_texture_btn")
+                            ) {
+                                Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isPersian) "🖼️ بارگذاری عکس از گالری" else "Import Photo Texture",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Button(
+                                onClick = onImportPhotoTo3D,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SculptAmber,
+                                    contentColor = Color(0xFF241100)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("import_photo_relief_btn")
+                            ) {
+                                Icon(Icons.Default.FileOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isPersian) "🏔️ تبدیل عکس به مدل 3D" else "Photo to 3D Relief",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Button(
                                 onClick = onExportTexturePng,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = CyberCyan,
@@ -238,7 +278,7 @@ fun MaterialAndLightPanel(
                                     .fillMaxWidth()
                                     .testTag("export_texture_png_btn")
                             ) {
-                                Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = if (isPersian) "خروجی تکسچر PNG" else "Export PNG Map",
@@ -785,16 +825,26 @@ fun ExportAndProjectsPanel(
     exportPayload: ExportPayload?,
     savedProjects: List<ProjectEntity>,
     recentExports: List<ExportLogEntity>,
+    isOnline: Boolean = true,
+    apkSizeKb: Long = 0L,
     onUpdateProjectName: (String) -> Unit,
     onSelectFormat: (ExportFormat3D) -> Unit,
     onRequestSaveFileToDevice: (ExportFormat3D, String) -> Unit,
     onShareExportFile: () -> Unit,
     onRequestImportFile: () -> Unit,
+    onImportOnlineUrl: (String) -> Unit = {},
     onSaveProjectToRoom: () -> Unit,
     onLoadProjectFromRoom: (ProjectEntity) -> Unit,
     onDeleteProjectFromRoom: (Long) -> Unit,
+    onOpenLiveWebStudio: () -> Unit = {},
+    onShareStandaloneWebHtml: () -> Unit = {},
+    onSaveAndroidApkFile: (String) -> Unit = {},
+    onShareAndroidApkFile: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var onlineUrlInput by remember { mutableStateOf("") }
+    val apkMbText = if (apkSizeKb > 0) String.format(Locale.US, " (%.1f MB)", apkSizeKb / 1024f) else ""
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -802,6 +852,157 @@ fun ExportAndProjectsPanel(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Dedicated Android .APK & Web .HTML Center (Online & Offline Ready)
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF062C22)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.5.dp, ManifoldEmerald, RoundedCornerShape(18.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Icon(
+                                imageVector = Icons.Default.Language,
+                                contentDescription = null,
+                                tint = ManifoldEmerald,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isPersian)
+                                    "فایل نصبی اندروید (.APK) و نسخه وب (.HTML)"
+                                else
+                                    "Android Installer (.APK) & Web App (.HTML)",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = ManifoldEmerald,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Surface(
+                            color = if (isOnline) ManifoldEmerald.copy(alpha = 0.25f) else CyberCyan.copy(alpha = 0.25f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = if (isOnline)
+                                    (if (isPersian) "آنلاین + آفلاین فعال" else "Online + Offline")
+                                else
+                                    (if (isPersian) "حالت آفلاین ۱۰۰٪ فعال" else "100% Offline Ready"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isOnline) ManifoldEmerald else CyberCyan,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (isPersian)
+                            "هر دو نسخه اندروید (.APK) و نسخه تحت وب (.HTML) به صورت ۱۰۰٪ آفلاین (بدون نیاز به اینترنت) و همچنین آنلاین کار می‌کنند. می‌توانید همین الان فایل نصبی اندروید یا فایل وب را ذخیره یا ارسال کنید:"
+                        else
+                            "Both the Android (.APK) and Web (.HTML) packages work 100% offline and online.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Row 1: Android .APK Direct Save & Share
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { onSaveAndroidApkFile("PolyForge_3D_Studio_v1.0.apk") },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CyberCyan,
+                                contentColor = Color(0xFF00242B)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("export_save_apk_btn")
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = if (isPersian) "ذخیره اندروید .APK$apkMbText" else "Save .APK$apkMbText",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Button(
+                            onClick = onShareAndroidApkFile,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = SculptAmber,
+                                contentColor = Color(0xFF241100)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("export_share_apk_btn")
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = if (isPersian) "ارسال فایل .APK" else "Share .APK",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Row 2: Web .HTML Studio Preview & Share
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onOpenLiveWebStudio,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = ManifoldEmerald,
+                                contentColor = Color(0xFF002417)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("open_live_web_studio_btn")
+                        ) {
+                            Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isPersian) "پیش‌نمایش نسخه وب" else "Live Web Studio",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Button(
+                            onClick = onShareStandaloneWebHtml,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF38BDF8),
+                                contentColor = Color(0xFF082F49)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("share_standalone_web_html_btn")
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isPersian) "ارسال فایل وب (.HTML)" else "Share .HTML File",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
         item {
             Card(
                 shape = RoundedCornerShape(18.dp),
@@ -854,7 +1055,40 @@ fun ExportAndProjectsPanel(
                         ) {
                             Icon(Icons.Default.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (isPersian) "ورود فایل STL/OBJ/PLY" else "Import 3D File")
+                            Text(if (isPersian) "ورود فایل آفلاین STL/OBJ" else "Import Offline 3D")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Online URL 3D Model Importer
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = onlineUrlInput,
+                            onValueChange = { onlineUrlInput = it },
+                            label = {
+                                Text(
+                                    if (isPersian)
+                                        "لینک آنلاین مدل سه‌بعدی (URL .obj / .stl)"
+                                    else
+                                        "Online 3D Model URL (.obj / .stl)"
+                                )
+                            },
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("online_3d_url_input")
+                        )
+                        Button(
+                            onClick = { onImportOnlineUrl(onlineUrlInput) },
+                            enabled = onlineUrlInput.isNotBlank(),
+                            colors = ButtonDefaults.buttonColors(containerColor = CyberCyan, contentColor = Color(0xFF00242B))
+                        ) {
+                            Text(if (isPersian) "دانلود" else "Load", fontWeight = FontWeight.Bold)
                         }
                     }
                 }

@@ -3,6 +3,9 @@ package com.example.viewmodel
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
@@ -19,6 +22,7 @@ import com.example.engine.PrimitiveGenerator
 import com.example.engine.PrimitiveType3D
 import com.example.engine.ReadyModelPreset
 import com.example.engine.TextureEngine
+import com.example.engine.Web3DGenerator
 import com.example.model.AxisConstraint
 import com.example.model.CustomPaintStroke
 import com.example.model.ExportFormat3D
@@ -32,6 +36,8 @@ import com.example.model.UvMappingMode
 import com.example.model.Vec3
 import com.example.model.ViewportShadingMode
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,11 +51,11 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
 enum class StudioTab(val titleFa: String, val titleEn: String) {
-    VIEWPORT("میز کار 3D", "3D Studio"),
-    LIBRARY("مدل‌های آماده", "Asset Library"),
-    SCULPT_MESH("ابزار و مش", "Mesh & Sculpt"),
-    MATERIAL_LIGHT("تکسچر و متریال", "Texture & PBR"),
-    EXPORT_PROJECTS("خروجی GLB/STL", "Export & Files")
+    VIEWPORT("میز کار", "Studio"),
+    LIBRARY("مدل‌ها", "Library"),
+    SCULPT_MESH("ابزار مش", "Sculpt"),
+    MATERIAL_LIGHT("تکسچر", "Texture"),
+    EXPORT_PROJECTS("خروجی", "Export")
 }
 
 data class StudioUiState(
@@ -68,11 +74,11 @@ data class StudioUiState(
     val showWireframeOverlay: Boolean = false,
     val showNormals: Boolean = false,
     val showVertices: Boolean = false,
-    val showDimensions: Boolean = true,
+    val showDimensions: Boolean = false,
     val autoTurntable: Boolean = false,
     val cameraYaw: Float = -32f,
     val cameraPitch: Float = 22f,
-    val cameraZoom: Float = 4.5f,
+    val cameraZoom: Float = 5.0f,
     val cameraPanX: Float = 0f,
     val cameraPanY: Float = 0f,
     val canUndo: Boolean = false,
@@ -80,6 +86,8 @@ data class StudioUiState(
     val engineeringStats: MeshEngineeringStats = MeshModifiers.computeEngineeringStats(emptyList()),
     val selectedExportFormat: ExportFormat3D = ExportFormat3D.GLB,
     val activeExportPayload: ExportPayload? = null,
+    val isOnline: Boolean = true,
+    val installedApkSizeKb: Long = 0L,
     val statusBannerMessage: String? = null
 )
 
@@ -120,7 +128,24 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
             pushHistory = false,
             newProjectName = "CAD_Cube_Model"
         )
+        refreshDeviceAndNetworkInfo(application)
         seedStarterProjectsIfNeeded()
+    }
+
+    fun refreshDeviceAndNetworkInfo(context: Context) {
+        val online = runCatching {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val net = cm?.activeNetwork
+            val caps = cm?.getNetworkCapabilities(net)
+            caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        }.getOrDefault(false)
+
+        val apkKb = runCatching {
+            val src = context.applicationInfo?.sourceDir
+            if (!src.isNullOrBlank()) File(src).length() / 1024L else 0L
+        }.getOrDefault(0L)
+
+        _uiState.update { it.copy(isOnline = online, installedApkSizeKb = apkKb) }
     }
 
     private fun seedStarterProjectsIfNeeded() {
@@ -645,6 +670,165 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun generateCurrentWebStudioHtml(): String {
+        val state = _uiState.value
+        return Web3DGenerator.generateStandaloneWeb3DHtml(state.nodes, state.projectName)
+    }
+
+    fun shareStandaloneWebHtml(context: Context) {
+        val state = _uiState.value
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val payload = FileExporterImporter.generateExport(
+                    state.nodes,
+                    ExportFormat3D.HTML_WEB3D,
+                    state.projectName
+                )
+                val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+                val outFile = File(exportDir, payload.fileName)
+                outFile.writeBytes(payload.bytes)
+
+                repository.recordExport(
+                    ExportLogEntity(
+                        fileName = payload.fileName,
+                        formatName = payload.format.titleEn,
+                        byteSize = payload.bytes.size,
+                        vertexCount = payload.vertexCount,
+                        triangleCount = payload.triangleCount
+                    )
+                )
+
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    outFile
+                )
+                withContext(Dispatchers.Main) {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/html"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_SUBJECT, payload.fileName)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(
+                        Intent.createChooser(shareIntent, "اشتراک‌گذاری و اجرای فایل وب (${payload.fileName})")
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(statusBannerMessage = "خطا در تولید فایل وب: ${err.localizedMessage}")
+                }
+            }
+        }
+    }
+
+    fun shareInstalledApk(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val apkPath = context.applicationInfo.sourceDir
+                val sourceApk = File(apkPath)
+                require(sourceApk.exists() && sourceApk.length() > 0L) {
+                    "فایل باینری APK در مسیر سیستم یافت نشد"
+                }
+                val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+                val outApk = File(exportDir, "PolyForge_3D_Studio_v2.0.apk")
+                if (outApk.exists()) outApk.delete()
+                sourceApk.inputStream().use { input ->
+                    outApk.outputStream().use { output ->
+                        input.copyTo(output)
+                        output.flush()
+                    }
+                }
+
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    outApk
+                )
+                withContext(Dispatchers.Main) {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/vnd.android.package-archive"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_SUBJECT, outApk.name)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(
+                        Intent.createChooser(shareIntent, "ارسال فایل نصبی اندروید (${outApk.name})")
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(statusBannerMessage = "خطا در استخراج APK: ${err.localizedMessage}")
+                }
+            }
+        }
+    }
+
+    fun writeInstalledApkToUri(context: Context, targetUri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val sourceApk = File(context.applicationInfo.sourceDir)
+                var copiedBytes = 0L
+                sourceApk.inputStream().use { input ->
+                    val outStream = runCatching {
+                        context.contentResolver.openOutputStream(targetUri, "wt")
+                    }.getOrNull() ?: context.contentResolver.openOutputStream(targetUri)
+                    outStream?.use { output ->
+                        copiedBytes = input.copyTo(output)
+                        output.flush()
+                    }
+                }
+                copiedBytes
+            }.onSuccess { bytes ->
+                _uiState.update {
+                    it.copy(statusBannerMessage = "فایل نصبی اندروید (PolyForge_3D_Studio_v2.0.apk - ${bytes / 1024} KB) با موفقیت ذخیره شد!")
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(statusBannerMessage = "خطا در ذخیره فایل APK: ${err.localizedMessage}")
+                }
+            }
+        }
+    }
+
+    fun importModelFromOnlineUrl(urlStr: String) {
+        val cleanUrl = urlStr.trim()
+        if (cleanUrl.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val url = URL(cleanUrl)
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 8000
+                    readTimeout = 10000
+                    requestMethod = "GET"
+                }
+                val bytes = conn.inputStream.use { it.readBytes() }
+                val fileName = cleanUrl.substringAfterLast('/').substringBefore('?').ifBlank { "online_model.obj" }
+                val importedNodes = FileExporterImporter.import3DFile(fileName, bytes)
+                withContext(Dispatchers.Main) {
+                    if (importedNodes.isNotEmpty()) {
+                        applySceneNodes(
+                            newNodes = importedNodes,
+                            selectedId = importedNodes.first().id,
+                            statusMessage = "مدل آنلاین «$fileName» دانلود و در میز کار بارگذاری شد (${importedNodes.sumOf { it.faces.size }} مثلث)"
+                        )
+                        _uiState.update { it.copy(activeTab = StudioTab.VIEWPORT) }
+                    } else {
+                        _uiState.update {
+                            it.copy(statusBannerMessage = "لینک دانلود شد اما فرمت سه‌بعدی (STL/OBJ/PLY) معتبر نبود.")
+                        }
+                    }
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(statusBannerMessage = "عدم دسترسی به لینک آنلاین (برنامه در حالت آفلاین کامل نیز کار می‌کند): ${err.localizedMessage}")
+                }
+            }
+        }
+    }
+
     // Export & Import Operations
     fun selectExportFormat(format: ExportFormat3D) {
         val state = _uiState.value
@@ -660,7 +844,10 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         )
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                context.contentResolver.openOutputStream(targetUri)?.use { out ->
+                val outStream = runCatching {
+                    context.contentResolver.openOutputStream(targetUri, "wt")
+                }.getOrNull() ?: context.contentResolver.openOutputStream(targetUri)
+                outStream?.use { out ->
                     out.write(payload.bytes)
                     out.flush()
                 }
@@ -732,25 +919,136 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun importExternal3DUri(context: Context, uri: Uri, displayName: String) {
+    private fun decodeSampledBitmap(bytes: ByteArray, maxDim: Int = 256): android.graphics.Bitmap? {
+        return runCatching {
+            val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOpts)
+            var sampleSize = 1
+            val w = boundsOpts.outWidth
+            val h = boundsOpts.outHeight
+            if (w > maxDim || h > maxDim) {
+                val halfW = w / 2
+                val halfH = h / 2
+                while ((halfW / sampleSize) >= maxDim && (halfH / sampleSize) >= maxDim) {
+                    sampleSize *= 2
+                }
+            }
+            val decodeOpts = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOpts)
+        }.getOrNull()
+    }
+
+    fun importExternal3DUri(
+        context: Context,
+        uri: Uri,
+        displayName: String,
+        appendToScene: Boolean = false
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                     ?: return@launch
+                val lower = displayName.lowercase()
+                if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".webp")) {
+                    val bmp = decodeSampledBitmap(bytes, maxDim = 256)
+                    if (bmp != null) {
+                        val reliefNode = TextureEngine.create3DReliefMeshFromPhoto(bmp, displayName)
+                        withContext(Dispatchers.Main) {
+                            val nextNodes = if (appendToScene) _uiState.value.nodes + reliefNode else listOf(reliefNode)
+                            applySceneNodes(
+                                newNodes = nextNodes,
+                                selectedId = reliefNode.id,
+                                statusMessage = "عکس «$displayName» به مدل سه‌بعدی برجسته تبدیل شد (${reliefNode.faces.size} مثلث)"
+                            )
+                            _uiState.update { it.copy(activeTab = StudioTab.VIEWPORT) }
+                        }
+                        return@launch
+                    }
+                }
+
                 val importedNodes = FileExporterImporter.import3DFile(displayName, bytes)
                 withContext(Dispatchers.Main) {
                     if (importedNodes.isNotEmpty()) {
+                        val nextNodes = if (appendToScene) _uiState.value.nodes + importedNodes else importedNodes
                         applySceneNodes(
-                            newNodes = importedNodes,
+                            newNodes = nextNodes,
                             selectedId = importedNodes.first().id,
                             statusMessage = "فایل سه‌بعدی «$displayName» در میز کار بارگذاری شد (${importedNodes.sumOf { it.faces.size }} مثلث)"
                         )
                         _uiState.update { it.copy(activeTab = StudioTab.VIEWPORT) }
                     } else {
                         _uiState.update {
-                            it.copy(statusBannerMessage = "فرمت فایل قابل استخراج نبود. فرمت‌های مجاز: STL, OBJ, PLY")
+                            it.copy(statusBannerMessage = "فرمت فایل قابل استخراج نبود. فرمت‌های مجاز: GLB, GLTF, STL, OBJ, PLY")
                         }
                     }
+                }
+            }
+        }
+    }
+
+    fun importPhotoAsTextureUri(context: Context, uri: Uri, displayName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: return@launch
+                val bmp = decodeSampledBitmap(bytes, maxDim = 256) ?: return@launch
+                val grid = TextureEngine.extractPhotoPixelsGrid(bmp, 48)
+                withContext(Dispatchers.Main) {
+                    updateSelectedMaterial { mat ->
+                        mat.copy(
+                            name = "Photo Texture ($displayName)",
+                            nameFa = "تکسچر عکس ($displayName)",
+                            baseColorHex = 0xFFFFFFFF,
+                            textureType = TextureType.PHOTO_TEXTURE,
+                            textureScale = 1.0f,
+                            textureBlend = 0.96f,
+                            customPhotoPixels = grid,
+                            customPhotoSize = 48
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            activeTab = StudioTab.VIEWPORT,
+                            statusBannerMessage = "عکس «$displayName» به عنوان تکسچر روی مدل سه‌بعدی اعمال شد"
+                        )
+                    }
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(statusBannerMessage = "خطا در بارگذاری عکس: ${err.localizedMessage}")
+                }
+            }
+        }
+    }
+
+    fun importPhotoAs3DReliefUri(
+        context: Context,
+        uri: Uri,
+        displayName: String,
+        appendToScene: Boolean = false
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: return@launch
+                val bmp = decodeSampledBitmap(bytes, maxDim = 256) ?: return@launch
+                val reliefNode = TextureEngine.create3DReliefMeshFromPhoto(bmp, displayName)
+                withContext(Dispatchers.Main) {
+                    val nextNodes = if (appendToScene) _uiState.value.nodes + reliefNode else listOf(reliefNode)
+                    applySceneNodes(
+                        newNodes = nextNodes,
+                        selectedId = reliefNode.id,
+                        newProjectName = displayName.substringBeforeLast('.').ifBlank { "Photo_3D" },
+                        statusMessage = "عکس «$displayName» به مدل سه‌بعدی برجسته (3D Relief) تبدیل شد!"
+                    )
+                    _uiState.update { it.copy(activeTab = StudioTab.VIEWPORT) }
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(statusBannerMessage = "خطا در تبدیل عکس به مدل 3D: ${err.localizedMessage}")
                 }
             }
         }

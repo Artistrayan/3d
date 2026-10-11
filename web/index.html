@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0B101E" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="manifest" href="./manifest.json" />
+<title>PolyForge 3D Studio — استودیو کامل مدل‌سازی سه‌بعدی</title>
+<style>
+  :root {
+    --bg: #0B101E;
+    --surface: #111827;
+    --surface-alpha: rgba(17, 24, 39, 0.94);
+    --surface-elevated: #1E293B;
+    --border: #334155;
+    --cyan: #00E5FF;
+    --amber: #FF9100;
+    --emerald: #10B981;
+    --red: #EF4444;
+    --green: #22C55E;
+    --blue: #3B82F6;
+    --purple: #A855F7;
+    --text: #F8FAFC;
+    --muted: #94A3B8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100vw; height: 100vh; height: 100dvh; overflow: hidden;
+    background: var(--bg);
+    font-family: system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+    color: var(--text);
+    display: flex; flex-direction: column;
+  }
+  .top-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 6px 10px;
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    flex-shrink: 0; z-index: 20;
+  }
+  .brand { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+  .brand-badge {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: rgba(0,229,255,0.16); border: 1px solid var(--cyan);
+    display: grid; place-items: center; color: var(--cyan); font-weight: 800; font-size: 12px;
+  }
+  .brand-title { font-size: 13px; font-weight: 800; color: #fff; white-space: nowrap; }
+  .brand-stats { font-size: 10px; color: var(--cyan); font-family: monospace; direction: ltr; text-align: right; white-space: nowrap; }
+  .header-actions {
+    display: flex; align-items: center; gap: 4px; overflow-x: auto; flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+  .header-actions::-webkit-scrollbar { display: none; }
+  button, .chip-btn {
+    background: var(--surface-elevated); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 5px 8px; font-size: 11px; font-weight: 600; cursor: pointer;
+    white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    transition: 0.14s ease; font-family: inherit;
+  }
+  button:active { transform: scale(0.96); }
+  button.active, .chip-btn.active {
+    border-color: var(--cyan); color: var(--cyan); background: rgba(0,229,255,0.18);
+  }
+  button.btn-cyan { background: var(--cyan); color: #00242B; border-color: var(--cyan); font-weight: 800; }
+  button.btn-amber { background: rgba(255,145,0,0.18); color: var(--amber); border-color: var(--amber); font-weight: 700; }
+  button.btn-emerald { background: rgba(16,185,129,0.18); color: var(--emerald); border-color: var(--emerald); font-weight: 700; }
+  button.btn-red { background: rgba(239,68,68,0.18); color: #FCA5A5; border-color: var(--red); }
+  #toastBanner {
+    background: #083344; color: var(--cyan); border-bottom: 1px solid rgba(0,229,255,0.4);
+    padding: 5px 12px; font-size: 11px; display: none; align-items: center; justify-content: space-between;
+    flex-shrink: 0; z-index: 19;
+  }
+  .workspace-area {
+    flex: 1; min-height: 0; width: 100%; position: relative;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #canvasContainer {
+    flex: 1; min-height: 150px; width: 100%; position: relative; overflow: hidden;
+    background: radial-gradient(circle at 50% 45%, #17223B 0%, #0B101E 70%, #070A14 100%);
+  }
+  #viewport {
+    width: 100%; height: 100%; display: block; touch-action: none; cursor: grab;
+  }
+  #viewport:active { cursor: grabbing; }
+  .canvas-top-strip {
+    position: absolute; top: 6px; left: 8px; right: 8px; z-index: 10;
+    display: flex; gap: 5px; overflow-x: auto; padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .canvas-top-strip::-webkit-scrollbar { display: none; }
+  .canvas-bottom-dock {
+    position: absolute; bottom: 6px; left: 8px; right: 8px; z-index: 10;
+    background: var(--surface-alpha); backdrop-filter: blur(12px);
+    border: 1px solid var(--border); border-radius: 13px;
+    padding: 7px 9px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .dock-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .tool-group { display: flex; gap: 4px; flex-shrink: 0; }
+  .tool-icon-btn {
+    width: 32px; height: 30px; padding: 0; border-radius: 8px; font-size: 11px; font-weight: 700;
+  }
+  .scroll-strip {
+    display: flex; gap: 5px; overflow-x: auto; align-items: center; flex: 1;
+    scrollbar-width: none;
+  }
+  .scroll-strip::-webkit-scrollbar { display: none; }
+  #xyzDrawer {
+    border-top: 1px solid var(--border); padding-top: 6px;
+    display: none; flex-direction: column; gap: 6px;
+  }
+  .xyz-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; direction: ltr; }
+  .xyz-item {
+    background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 8px;
+    padding: 4px 6px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .xyz-item label { font-size: 10px; font-weight: 700; display: flex; justify-content: space-between; }
+  .xyz-item input[type=range] { width: 100%; height: 18px; accent-color: var(--cyan); }
+  #tabPanelSheet {
+    height: 62%; background: var(--surface);
+    border-top: 2px solid rgba(0,229,255,0.45);
+    border-radius: 18px 18px 0 0;
+    display: none; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  }
+  #tabPanelSheet.maximized { height: 100%; border-radius: 0; }
+  .sheet-header {
+    background: var(--surface-elevated); padding: 8px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .sheet-title { font-size: 13px; font-weight: 800; color: var(--cyan); }
+  .sheet-body {
+    flex: 1; overflow-y: auto; padding: 10px 12px 18px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .section-card {
+    background: var(--surface-elevated); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .section-title { font-size: 12px; font-weight: 800; color: #fff; display: flex; align-items: center; justify-content: space-between; }
+  .section-sub { font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+  .preset-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px; cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+    text-align: right;
+  }
+  .preset-card:active, .preset-card:hover { border-color: var(--cyan); background: rgba(0,229,255,0.1); }
+  .preset-card-title { font-size: 12px; font-weight: 700; color: var(--cyan); }
+  .preset-card-desc { font-size: 10px; color: var(--muted); }
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; direction: ltr; }
+  .stat-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px; text-align: center;
+  }
+  .stat-val { font-size: 12px; font-weight: 800; color: var(--cyan); font-family: monospace; }
+  .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .paint-wrap { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  #texPaintCanvas {
+    width: 140px; height: 140px; border-radius: 10px;
+    border: 2px solid var(--cyan); touch-action: none; cursor: crosshair; background: #111827;
+  }
+  .color-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .color-swatch {
+    width: 24px; height: 24px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.65); cursor: pointer;
+  }
+  .color-swatch.active { transform: scale(1.18); border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .slider-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px;
+  }
+  .slider-row input[type=range] { flex: 1; accent-color: var(--cyan); }
+  .bottom-nav {
+    height: 60px; background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    flex-shrink: 0; z-index: 20;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .nav-item {
+    background: transparent; border: none; border-radius: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    color: var(--muted); padding: 4px 2px; cursor: pointer;
+  }
+  .nav-item .nav-icon {
+    width: 36px; height: 22px; border-radius: 11px;
+    display: grid; place-items: center; font-size: 13px; transition: 0.15s;
+  }
+  .nav-item .nav-label { font-size: 10px; font-weight: 700; }
+  .nav-item.active { color: var(--cyan); }
+  .nav-item.active .nav-icon { background: var(--cyan); color: #00242B; font-weight: 900; }
+  .hidden { display: none !important; }
+  #exitFullBtn {
+    position: fixed; top: 10px; right: 10px; z-index: 50;
+    background: var(--surface-alpha); border: 1px solid var(--cyan); color: var(--cyan);
+    padding: 7px 12px; font-size: 12px;
+  }
+  input[type=text] {
+    background: var(--surface); color: #fff; border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; width: 100%; font-family: inherit;
+  }
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(7, 10, 20, 0.82);
+    backdrop-filter: blur(8px); z-index: 60; display: none;
+    align-items: center; justify-content: center; padding: 14px;
+  }
+  .modal-card {
+    background: var(--surface); border: 1.5px solid var(--cyan);
+    border-radius: 18px; width: 100%; max-width: 430px; padding: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    box-shadow: 0 18px 48px rgba(0,0,0,0.65);
+  }
+  .import-opt-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    text-align: right; padding: 11px 12px; border-radius: 12px;
+    background: var(--surface-elev); border: 1px solid var(--border);
+    width: 100%; gap: 10px;
+  }
+</style>
+</head>
+<body>
+
+<button id="exitFullBtn" class="hidden" onclick="setFullScreen(false)">نمایش منوها و نوار ابزار (Show UI)</button>
+
+<input type="file" id="fileImportInput" accept=".stl,.obj,.glb,.gltf,.ply,.json,image/*,*/*" style="display:none" onchange="handleFileImport(event)" />
+<input type="file" id="photoTo3DInput" accept="image/*" style="display:none" onchange="handlePhotoTo3DImport(event)" />
+<input type="file" id="photoTexInput" accept="image/*" style="display:none" onchange="handlePhotoTextureImport(event)" />
+
+<div id="importModal" class="modal-backdrop" onclick="if(event.target===this)closeImportModal()">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:14px;font-weight:800;color:var(--cyan);">📂 وارد کردن فایل سه‌بعدی و عکس (Import)</span>
+      <button onclick="closeImportModal()" style="padding:3px 8px;">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);line-height:1.5;">
+      می‌توانید فایل‌های سه‌بعدی را از حافظه گوشی وارد کنید یا هر عکس و لوگو را از گالری انتخاب کرده و به مدل سه‌بعدی برجسته یا تکسچر تبدیل نمایید:
+    </div>
+
+    <button class="import-opt-btn" style="border-color:var(--cyan);background:rgba(0,229,255,0.12);" onclick="closeImportModal();document.getElementById('fileImportInput').click()">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#fff;">📂 وارد کردن فایل سه‌بعدی (.GLB, .STL, .OBJ, .PLY)</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">بارگذاری مستقیم مدل‌های سه‌بعدی از حافظه گوشی در میز کار</div>
+      </div>
+      <span style="font-size:18px;">⬅</span>
+    </button>
+
+    <button class="import-opt-btn" style="border-color:var(--amber);background:rgba(255,145,0,0.14);" onclick="closeImportModal();document.getElementById('photoTo3DInput').click()">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#fff;">🏔️ تبدیل عکس گالری به مدل سه‌بعدی برجسته (Photo to 3D)</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">ساخت مدل سه‌بعدی برجسته (Relief / Lithophane) از هر عکس یا لوگو</div>
+      </div>
+      <span style="font-size:18px;">⬅</span>
+    </button>
+
+    <button class="import-opt-btn" style="border-color:var(--emerald);background:rgba(16,185,129,0.14);" onclick="closeImportModal();document.getElementById('photoTexInput').click()">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#fff;">🖼️ اعمال عکس گالری به عنوان تکسچر روی مدل فعلی</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">پوشاندن سطح مدل سه‌بعدی فعلی با عکس دلخواه شما از گالری</div>
+      </div>
+      <span style="font-size:18px;">⬅</span>
+    </button>
+
+    <label style="font-size:11px;color:var(--cyan);display:flex;align-items:center;gap:6px;margin-top:2px;">
+      <input type="checkbox" id="chkModalAppend" /> افزودن در کنار مدل‌های فعلی صحنه (بدون پاک شدن مدل قبلی)
+    </label>
+  </div>
+</div>
+
+<header id="topHeader" class="top-header">
+  <div class="brand">
+    <div class="brand-badge">3D</div>
+    <div>
+      <div class="brand-title">PolyForge 3D</div>
+      <div id="headerStats" class="brand-stats">1 Obj • 8V • 12T</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button onclick="undoAction()" title="بازگشت (Undo)">↶</button>
+    <button onclick="redoAction()" title="انجام مجدد (Redo)">↷</button>
+    <button class="btn-cyan" onclick="openImportModal()">📂 وارد کردن فایل/عکس</button>
+    <button class="btn-amber" onclick="selectTab('MATERIAL')">تکسچر</button>
+    <button class="btn-emerald" onclick="selectTab('EXPORT')">خروجی GLB/STL</button>
+    <button onclick="setFullScreen(true)">تمام‌صفحه</button>
+  </div>
+</header>
+
+<div id="toastBanner">
+  <span id="toastText">عملیات انجام شد</span>
+  <button onclick="hideToast()" style="padding:2px 6px;font-size:10px;">✕</button>
+</div>
+
+<main class="workspace-area">
+  <div id="canvasContainer">
+    <canvas id="viewport"></canvas>
+
+    <div id="canvasTopStrip" class="canvas-top-strip">
+      <button class="btn-cyan" onclick="openImportModal()">📂 فایل / 🖼️ عکس</button>
+      <button id="btnOrtho" onclick="toggleOrtho()">PERSP</button>
+      <button onclick="setCamPreset(-0.58, 0.40, 4.6)">ایزومتریک</button>
+      <button onclick="setCamPreset(0, 0, 4.5)">روبرو</button>
+      <button onclick="setCamPreset(0, 1.48, 5.0)">بالا</button>
+      <button onclick="setCamPreset(1.57, 0, 4.5)">پهلو</button>
+      <button id="btnWire" onclick="toggleWire()">مش سیمی</button>
+      <button id="btnVerts" onclick="toggleVerts()">رئوس</button>
+      <button id="btnDims" onclick="toggleDims()">ابعاد mm</button>
+      <button id="btnSpin" onclick="toggleSpin()">چرخش ۳۶۰°</button>
+      <button class="btn-red" onclick="clearScene()">خلوت کردن</button>
+    </div>
+
+    <div id="canvasBottomDock" class="canvas-bottom-dock">
+      <div class="dock-row">
+        <div class="tool-group">
+          <button id="toolOrbit" class="tool-icon-btn active" onclick="setTool('ORBIT')" title="چرخش دوربین">🔄</button>
+          <button id="toolMove" class="tool-icon-btn" onclick="setTool('MOVE')" title="جابجایی">✥</button>
+          <button id="toolRotate" class="tool-icon-btn" onclick="setTool('ROTATE')" title="چرخش مدل">↻</button>
+          <button id="toolScale" class="tool-icon-btn" onclick="setTool('SCALE')" title="مقیاس">⤢</button>
+        </div>
+
+        <div id="quickShapesStrip" class="scroll-strip">
+          <button onclick="spawnPrimitive('CUBE', false)">مکعب</button>
+          <button onclick="spawnPrimitive('SPHERE', false)">کره</button>
+          <button onclick="spawnPrimitive('CYLINDER', false)">استوانه</button>
+          <button onclick="spawnPrimitive('GEAR', false)">چرخ‌دنده</button>
+          <button onclick="spawnPrimitive('VASE', false)">گلدان</button>
+          <button onclick="spawnPrimitive('GEM', false)">الماس</button>
+          <button onclick="spawnPrimitive('TORUS', false)">حلقه</button>
+        </div>
+
+        <button id="btnToggleXyz" onclick="toggleXyzDrawer()" style="border-color:var(--cyan);color:var(--cyan);">ابعاد X/Y/Z</button>
+      </div>
+
+      <div id="xyzDrawer">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span id="selNodeTitle" style="font-size:11px;font-weight:700;color:#fff;">مکعب مهندسی</span>
+          <div style="display:flex;gap:4px;">
+            <button onclick="modSubdivide(true)" style="color:var(--cyan);">Subdivide+</button>
+            <button onclick="duplicateSelected()">کپی مدل</button>
+            <button class="btn-red" onclick="deleteSelected()">حذف</button>
+          </div>
+        </div>
+        <div class="xyz-grid">
+          <div class="xyz-item">
+            <label style="color:var(--red);"><span>X</span><span id="valX">0.0</span></label>
+            <input id="sliderX" type="range" min="-3" max="3" step="0.05" value="0" oninput="onXyzSlider()" />
+          </div>
+          <div class="xyz-item">
+            <label style="color:var(--green);"><span>Y</span><span id="valY">0.0</span></label>
+            <input id="sliderY" type="range" min="-3" max="3" step="0.05" value="0" oninput="onXyzSlider()" />
+          </div>
+          <div class="xyz-item">
+            <label style="color:var(--blue);"><span>Z</span><span id="valZ">0.0</span></label>
+            <input id="sliderZ" type="range" min="-3" max="3" step="0.05" value="0" oninput="onXyzSlider()" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="tabPanelSheet">
+    <div class="sheet-header">
+      <span id="sheetTitleText" class="sheet-title">مدل‌ها و کتابخانه</span>
+      <div style="display:flex;gap:6px;">
+        <button id="btnExpandSheet" onclick="toggleSheetMaximize()">تمام‌صفحه پنل</button>
+        <button onclick="selectTab('VIEWPORT')" style="border-color:var(--cyan);color:var(--cyan);">✕ میز کار 3D</button>
+      </div>
+    </div>
+
+    <div class="sheet-body">
+      <div id="panelLibrary" class="tab-content">
+        <div class="section-card" style="border-color:var(--cyan);">
+          <div class="section-title">
+            <span>📂 وارد کردن فایل سه‌بعدی و تبدیل عکس به مدل 3D</span>
+          </div>
+          <div class="section-sub">فایل سه‌بعدی از حافظه گوشی وارد کنید یا عکس گالری را به مدل سه‌بعدی برجسته تبدیل نمایید:</div>
+          <div class="grid-2">
+            <button class="btn-cyan" onclick="document.getElementById('fileImportInput').click()" style="padding:9px;">📂 وارد کردن فایل 3D (.STL/.OBJ/.GLB)</button>
+            <button class="btn-amber" onclick="document.getElementById('photoTo3DInput').click()" style="padding:9px;">🏔️ تبدیل عکس گالری به مدل 3D</button>
+          </div>
+          <button class="btn-emerald" onclick="document.getElementById('photoTexInput').click()" style="padding:8px;">🖼️ انتخاب عکس از گالری به عنوان تکسچر روی مدل فعلی</button>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">
+            <span>افزودن اشکال هندسی پایه (۱۲ مدل استاندارد)</span>
+            <label style="font-size:10px;color:var(--cyan);display:flex;align-items:center;gap:4px;">
+              <input type="checkbox" id="chkAppendMode" /> افزودن کنار مدل قبلی
+            </label>
+          </div>
+          <div class="grid-3">
+            <button onclick="addPrimFromLib('CUBE')">🧊 مکعب</button>
+            <button onclick="addPrimFromLib('SPHERE')">🌐 کره</button>
+            <button onclick="addPrimFromLib('ICOSPHERE')">⚽ آیکوسفر</button>
+            <button onclick="addPrimFromLib('CYLINDER')">🛢 استوانه</button>
+            <button onclick="addPrimFromLib('CONE')">🔺 مخروط</button>
+            <button onclick="addPrimFromLib('TORUS')">🍩 حلقه تورس</button>
+            <button onclick="addPrimFromLib('CAPSULE')">💊 کپسول</button>
+            <button onclick="addPrimFromLib('PYRAMID')">📐 هرم</button>
+            <button onclick="addPrimFromLib('GEAR')">⚙ چرخ‌دنده</button>
+            <button onclick="addPrimFromLib('VASE')">🏺 گلدان مارپیچ</button>
+            <button onclick="addPrimFromLib('GEM')">💎 الماس</button>
+            <button onclick="addPrimFromLib('STAR')">⭐ ستاره</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">مدل‌های مرکب و صحنه‌های آماده حرفه‌ای</div>
+          <div class="section-sub">با لمس هر کارت، مدل کامل سه‌بعدی در میز کار بارگذاری می‌شود:</div>
+          <div class="grid-2">
+            <div class="preset-card" onclick="loadReadyPreset('MECHA_BOT')">
+              <div class="preset-card-title">🤖 ربات مکانیکی سایبری</div>
+              <div class="preset-card-desc">بدنه، سر، چشمان نئونی و بازوهای مفصلی</div>
+            </div>
+            <div class="preset-card" onclick="loadReadyPreset('CONCEPT_CAR')">
+              <div class="preset-card-title">🏎 خودروی اسپرت مفهومی</div>
+              <div class="preset-card-desc">شاسی آیرودینامیک، کابین شیشه‌ای و ۴ چرخ</div>
+            </div>
+            <div class="preset-card" onclick="loadReadyPreset('GEAR_ASSEMBLY')">
+              <div class="preset-card-title">⚙ گیربکس و چرخ‌دنده‌های درگیر</div>
+              <div class="preset-card-desc">مجموعه ۳ چرخ‌دنده صنعتی مهندسی</div>
+            </div>
+            <div class="preset-card" onclick="loadReadyPreset('SKYSCRAPER')">
+              <div class="preset-card-title">🏢 برج معماری مارپیچ</div>
+              <div class="preset-card-desc">برج مدرن چندطبقه با پایه مهندسی</div>
+            </div>
+            <div class="preset-card" onclick="loadReadyPreset('DIAMOND_RING')">
+              <div class="preset-card-title">💍 حلقه طلا و نگین الماس</div>
+              <div class="preset-card-desc">رکاب طلایی براق به همراه نگین الماس</div>
+            </div>
+            <div class="preset-card" onclick="loadReadyPreset('STARFIGHTER')">
+              <div class="preset-card-title">🚀 سفینه فضایی شکاری</div>
+              <div class="preset-card-desc">بدنه مرکزی، بال‌های دلتا و موتور پلاسما</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="panelSculpt" class="tab-content hidden">
+        <div class="section-card">
+          <div class="section-title">
+            <span>آمار مهندسی و پرینت سه‌بعدی (CAD Stats)</span>
+            <span style="font-size:10px;color:var(--emerald);">✔ Manifold Ready</span>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-box"><div id="stDim" class="stat-val">40×40×40</div><div class="stat-lbl">ابعاد (mm)</div></div>
+            <div class="stat-box"><div id="stVol" class="stat-val">64.0 cm³</div><div class="stat-lbl">حجم مدل</div></div>
+            <div class="stat-box"><div id="stWeight" class="stat-val">79.4 g</div><div class="stat-lbl">وزن PLA</div></div>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">ابزارهای تغییر شکل و حجاری مش (Mesh Modifiers)</div>
+          <div class="grid-2">
+            <button class="btn-cyan" onclick="modSubdivide(true)">✨ Subdivide Smooth (نرم)</button>
+            <button onclick="modSubdivide(false)">📐 Subdivide Flat (تخت)</button>
+            <button class="btn-amber" onclick="modExtrude(0.18)">🔼 Extrude Out (برجسته +)</button>
+            <button onclick="modExtrude(-0.14)">🔽 Extrude In (فرورفته -)</button>
+            <button class="btn-emerald" onclick="modSmooth()">🌊 Laplacian Smooth (صیقل)</button>
+            <button onclick="modTwist(0.65)">🌀 Twist Y (پیچش مارپیچ)</button>
+            <button onclick="modTaper(0.45)">🗼 Taper Top (مخروطی‌سازی)</button>
+            <button onclick="modInflate(0.15)">🎈 Inflate (تورم حجمی)</button>
+            <button onclick="modDecimate()">📉 Voxel Decimate (کاهش مش)</button>
+            <button onclick="modMirrorX()">🪞 Mirror X (قرینه محور X)</button>
+            <button onclick="modDropToFloor()">⬇ چسباندن به کف صفحه چاپ</button>
+            <button onclick="modWeldAll()">🔗 ادغام تمام قطعات (Weld)</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="panelMaterial" class="tab-content hidden">
+        <div class="section-card">
+          <div class="section-title">
+            <span>استودیو ساخت و نقاشی زنده تکسچر (UV Paint)</span>
+            <button class="btn-cyan" onclick="downloadTexturePng()" style="padding:3px 8px;font-size:10px;">دانلود تکسچر .PNG</button>
+          </div>
+          <div class="paint-wrap">
+            <canvas id="texPaintCanvas" width="160" height="160"></canvas>
+            <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:6px;">
+              <div class="section-sub">روی بوم مربع بکشید تا مستقیماً روی مدل سه‌بعدی نقاشی شود:</div>
+              <div class="color-row">
+                <div class="color-swatch active" style="background:#00E5FF" onclick="setBrushColor('#00E5FF', this)"></div>
+                <div class="color-swatch" style="background:#FF9100" onclick="setBrushColor('#FF9100', this)"></div>
+                <div class="color-swatch" style="background:#EF4444" onclick="setBrushColor('#EF4444', this)"></div>
+                <div class="color-swatch" style="background:#10B981" onclick="setBrushColor('#10B981', this)"></div>
+                <div class="color-swatch" style="background:#A855F7" onclick="setBrushColor('#A855F7', this)"></div>
+                <div class="color-swatch" style="background:#FACC15" onclick="setBrushColor('#FACC15', this)"></div>
+                <div class="color-swatch" style="background:#FFFFFF" onclick="setBrushColor('#FFFFFF', this)"></div>
+              </div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                <button class="btn-emerald" onclick="document.getElementById('photoTexInput').click()">🖼️ بارگذاری عکس از گالری</button>
+                <button class="btn-amber" onclick="document.getElementById('photoTo3DInput').click()">🏔️ تبدیل عکس به مدل 3D</button>
+                <button onclick="clearPaintStrokes()">پاک کردن قلم‌مو</button>
+                <button onclick="randomizeTexture()">🎲 تکسچر تصادفی</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">۱۰ تکسچر رویه‌ای مهندسی (Procedural Textures)</div>
+          <div class="grid-3">
+            <button onclick="setProceduralTex('NONE')">ساده PBR</button>
+            <button onclick="setProceduralTex('CHECKER')">شطرنجی</button>
+            <button onclick="setProceduralTex('CARBON')">فیبر کربن</button>
+            <button onclick="setProceduralTex('MARBLE')">سنگ مرمر</button>
+            <button onclick="setProceduralTex('CYBER')">نئون سایبری</button>
+            <button onclick="setProceduralTex('WOOD')">چوب طبیعی</button>
+            <button onclick="setProceduralTex('CIRCUIT')">مدار الکترونیکی</button>
+            <button onclick="setProceduralTex('BRICK')">آجر معماری</button>
+            <button onclick="setProceduralTex('SCALES')">پولکی / اژدها</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">تنظیمات رنگ و متریال PBR</div>
+          <div class="color-row">
+            <span style="font-size:11px;color:var(--muted);">رنگ بدنه:</span>
+            <div class="color-swatch" style="background:#00E5FF" onclick="setMatColor('#00E5FF')"></div>
+            <div class="color-swatch" style="background:#F59E0B" onclick="setMatColor('#F59E0B')"></div>
+            <div class="color-swatch" style="background:#10B981" onclick="setMatColor('#10B981')"></div>
+            <div class="color-swatch" style="background:#EF4444" onclick="setMatColor('#EF4444')"></div>
+            <div class="color-swatch" style="background:#3B82F6" onclick="setMatColor('#3B82F6')"></div>
+            <div class="color-swatch" style="background:#A855F7" onclick="setMatColor('#A855F7')"></div>
+            <div class="color-swatch" style="background:#E2E8F0" onclick="setMatColor('#E2E8F0')"></div>
+            <div class="color-swatch" style="background:#D97757" onclick="setMatColor('#D97757')"></div>
+          </div>
+          <div class="slider-row">
+            <span>فلزی بودن (Metallic)</span>
+            <input id="rngMetallic" type="range" min="0" max="1" step="0.05" value="0.35" oninput="updatePbrSliders()" />
+          </div>
+          <div class="slider-row">
+            <span>زبری سطح (Roughness)</span>
+            <input id="rngRoughness" type="range" min="0.05" max="1" step="0.05" value="0.3" oninput="updatePbrSliders()" />
+          </div>
+          <div class="slider-row">
+            <span>تراکم تکسچر (Scale)</span>
+            <input id="rngTexScale" type="range" min="1" max="16" step="1" value="5" oninput="updatePbrSliders()" />
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">حالت رندر (Shading) و نورپردازی استودیو</div>
+          <div class="grid-3">
+            <button onclick="setShading('PBR')">PBR استاندارد</button>
+            <button onclick="setShading('CLAY')">خشت حجاری (Clay)</button>
+            <button onclick="setShading('XRAY')">پرتو ایکس (X-Ray)</button>
+            <button onclick="setLighting('CYBER')">نور سایبری</button>
+            <button onclick="setLighting('SUNSET')">غروب طلایی</button>
+            <button onclick="setLighting('ARCTIC')">آزمایشگاه سفید</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="panelExport" class="tab-content hidden">
+        <div class="section-card">
+          <div class="section-title">نام پروژه و خروجی استاندارد سه‌بعدی</div>
+          <input type="text" id="inpProjectName" value="PolyForge_Model" placeholder="نام فایل خروجی..." />
+          <div class="grid-2" style="margin-top:4px;">
+            <button class="btn-cyan" onclick="downloadGLB()" style="padding:10px;">⬇ دانلود .GLB (استاندارد سه‌بعدی)</button>
+            <button class="btn-amber" onclick="downloadSTL()" style="padding:10px;">⬇ دانلود .STL (پرینتر سه‌بعدی)</button>
+            <button class="btn-emerald" onclick="downloadOBJ()" style="padding:10px;">⬇ دانلود .OBJ (بلندر و مکس)</button>
+            <button onclick="downloadPLY()" style="padding:10px;">⬇ دانلود .PLY (رنگی علمی)</button>
+            <button onclick="downloadGLTF()" style="padding:10px;">⬇ دانلود .GLTF (تحت وب)</button>
+            <button onclick="downloadStandaloneHTML()" style="padding:10px;">⬇ دانلود .HTML (صفحه وب 3D)</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">وارد کردن فایل سه‌بعدی و عکس از حافظه گوشی (Import)</div>
+          <div class="section-sub">فایل‌های .GLB, .GLTF, .STL, .OBJ, .PLY یا عکس‌های گالری را وارد میز کار کنید:</div>
+          <div class="grid-2">
+            <button class="btn-emerald" onclick="document.getElementById('fileImportInput').click()" style="padding:9px;">📂 انتخاب فایل سه‌بعدی (.GLB/.STL/.OBJ)</button>
+            <button class="btn-amber" onclick="document.getElementById('photoTo3DInput').click()" style="padding:9px;">🏔️ تبدیل عکس گالری به مدل 3D</button>
+          </div>
+          <button onclick="document.getElementById('photoTexInput').click()" style="padding:8px;">🖼️ بارگذاری عکس از گالری به عنوان تکسچر مدل</button>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">
+            <span>ذخیره و مدیریت پروژه‌های آفلاین</span>
+            <button class="btn-cyan" onclick="saveProjectOffline()">+ ذخیره پروژه فعلی</button>
+          </div>
+          <div id="savedProjectsList" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav id="bottomNav" class="bottom-nav">
+  <button id="navVIEWPORT" class="nav-item active" onclick="selectTab('VIEWPORT')">
+    <div class="nav-icon">🧊</div>
+    <span class="nav-label">میز کار</span>
+  </button>
+  <button id="navLIBRARY" class="nav-item" onclick="selectTab('LIBRARY')">
+    <div class="nav-icon">📚</div>
+    <span class="nav-label">مدل‌ها</span>
+  </button>
+  <button id="navSCULPT" class="nav-item" onclick="selectTab('SCULPT')">
+    <div class="nav-icon">🛠</div>
+    <span class="nav-label">ابزار مش</span>
+  </button>
+  <button id="navMATERIAL" class="nav-item" onclick="selectTab('MATERIAL')">
+    <div class="nav-icon">🎨</div>
+    <span class="nav-label">تکسچر</span>
+  </button>
+  <button id="navEXPORT" class="nav-item" onclick="selectTab('EXPORT')">
+    <div class="nav-icon">📤</div>
+    <span class="nav-label">خروجی</span>
+  </button>
+</nav>
+
+<script>
+let nodes = [];
+let selectedId = null;
+let undoStack = [], redoStack = [];
+let activeTab = 'VIEWPORT';
+let sheetMaximized = false;
+let toolMode = 'ORBIT';
+let isOrtho = false, showWire = false, showVerts = false, showDims = false, autoSpin = false;
+let shadingMode = 'PBR', lightingMode = 'CYBER';
+let camYaw = -0.58, camPitch = 0.40, camDist = 4.6, panX = 0, panY = 0;
+let paintStrokes = [];
+let brushColor = '#00E5FF';
+
+function uid() { return 'n_' + Math.random().toString(36).slice(2, 9); }
+function pushUndo() {
+  undoStack.push(JSON.stringify(nodes));
+  if (undoStack.length > 20) undoStack.shift();
+  redoStack = [];
+}
+function undoAction() {
+  if (!undoStack.length) { showToast('عملیاتی برای بازگشت نیست'); return; }
+  redoStack.push(JSON.stringify(nodes));
+  nodes = JSON.parse(undoStack.pop());
+  selectedId = nodes.length ? nodes[0].id : null;
+  syncUiFromSelected();
+  showToast('بازگشت به مرحله قبل (Undo)');
+}
+function redoAction() {
+  if (!redoStack.length) return;
+  undoStack.push(JSON.stringify(nodes));
+  nodes = JSON.parse(redoStack.pop());
+  selectedId = nodes.length ? nodes[0].id : null;
+  syncUiFromSelected();
+  showToast('انجام مجدد (Redo)');
+}
+function showToast(msg) {
+  const b = document.getElementById('toastBanner');
+  document.getElementById('toastText').textContent = msg;
+  b.style.display = 'flex';
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => { b.style.display = 'none'; }, 2800);
+}
+function hideToast() { document.getElementById('toastBanner').style.display = 'none'; }
+
+function selectTab(tab) {
+  activeTab = tab;
+  ['VIEWPORT','LIBRARY','SCULPT','MATERIAL','EXPORT'].forEach(t => {
+    document.getElementById('nav' + t).classList.toggle('active', t === tab);
+  });
+  const sheet = document.getElementById('tabPanelSheet');
+  const dock = document.getElementById('canvasBottomDock');
+  const topStrip = document.getElementById('canvasTopStrip');
+  const canvasCont = document.getElementById('canvasContainer');
+
+  if (tab === 'VIEWPORT') {
+    sheet.style.display = 'none';
+    canvasCont.style.display = 'block';
+    dock.style.display = 'flex';
+    topStrip.style.display = 'flex';
+  } else {
+    sheet.style.display = 'flex';
+    dock.style.display = 'none';
+    topStrip.style.display = 'none';
+    canvasCont.style.display = sheetMaximized ? 'none' : 'block';
+    const titles = {
+      LIBRARY: 'کتابخانه اشکال پایه و مدل‌های آماده',
+      SCULPT: 'ابزارهای مش، حجاری و آمار مهندسی',
+      MATERIAL: 'استودیو ساخت تکسچر، نقاشی و متریال PBR',
+      EXPORT: 'خروجی سه‌بعدی (GLB/STL/OBJ) و پروژه‌ها'
+    };
+    document.getElementById('sheetTitleText').textContent = titles[tab] || '';
+    ['Library','Sculpt','Material','Export'].forEach(p => {
+      document.getElementById('panel' + p).classList.toggle('hidden', p.toUpperCase() !== tab);
+    });
+    if (tab === 'MATERIAL') draw2DTexturePreview();
+    if (tab === 'SCULPT') updateEngineeringStatsUI();
+    if (tab === 'EXPORT') renderSavedProjectsList();
+  }
+  setTimeout(resizeCanvas, 30);
+}
+
+function toggleSheetMaximize() {
+  sheetMaximized = !sheetMaximized;
+  const sheet = document.getElementById('tabPanelSheet');
+  const canvasCont = document.getElementById('canvasContainer');
+  sheet.classList.toggle('maximized', sheetMaximized);
+  canvasCont.style.display = sheetMaximized ? 'none' : 'block';
+  document.getElementById('btnExpandSheet').textContent = sheetMaximized ? 'پیش‌نمایش 3D' : 'تمام‌صفحه پنل';
+  setTimeout(resizeCanvas, 30);
+}
+
+function setFullScreen(full) {
+  if (full) selectTab('VIEWPORT');
+  document.getElementById('topHeader').classList.toggle('hidden', full);
+  document.getElementById('bottomNav').classList.toggle('hidden', full);
+  document.getElementById('canvasTopStrip').classList.toggle('hidden', full);
+  document.getElementById('canvasBottomDock').classList.toggle('hidden', full);
+  document.getElementById('exitFullBtn').classList.toggle('hidden', !full);
+  setTimeout(resizeCanvas, 30);
+}
+
+function setTool(mode) {
+  toolMode = mode;
+  ['Orbit','Move','Rotate','Scale'].forEach(m => {
+    document.getElementById('tool' + m).classList.toggle('active', m.toUpperCase() === mode);
+  });
+  syncUiFromSelected();
+}
+
+function toggleXyzDrawer() {
+  const d = document.getElementById('xyzDrawer');
+  d.style.display = d.style.display === 'flex' ? 'none' : 'flex';
+  syncUiFromSelected();
+}
+
+function getSelectedNode() { return nodes.find(n => n.id === selectedId) || nodes[0] || null; }
+
+function syncUiFromSelected() {
+  const n = getSelectedNode();
+  if (!n) return;
+  document.getElementById('selNodeTitle').textContent = `${n.nameFa} (${n.faces.length} مثلث)`;
+  const sx = document.getElementById('sliderX'), sy = document.getElementById('sliderY'), sz = document.getElementById('sliderZ');
+  if (toolMode === 'ROTATE') {
+    sx.min = -180; sx.max = 180; sx.step = 2; sx.value = n.rot[0];
+    sy.min = -180; sy.max = 180; sy.step = 2; sy.value = n.rot[1];
+    sz.min = -180; sz.max = 180; sz.step = 2; sz.value = n.rot[2];
+  } else if (toolMode === 'SCALE') {
+    sx.min = 0.2; sx.max = 3.0; sx.step = 0.05; sx.value = n.scale[0];
+    sy.min = 0.2; sy.max = 3.0; sy.step = 0.05; sy.value = n.scale[1];
+    sz.min = 0.2; sy.max = 3.0; sy.step = 0.05; sz.value = n.scale[2];
+  } else {
+    sx.min = -3.0; sx.max = 3.0; sx.step = 0.05; sx.value = n.pos[0];
+    sy.min = -3.0; sy.max = 3.0; sy.step = 0.05; sy.value = n.pos[1];
+    sz.min = -3.0; sz.max = 3.0; sz.step = 0.05; sz.value = n.pos[2];
+  }
+  document.getElementById('valX').textContent = Number(sx.value).toFixed(1);
+  document.getElementById('valY').textContent = Number(sy.value).toFixed(1);
+  document.getElementById('valZ').textContent = Number(sz.value).toFixed(1);
+}
+
+function onXyzSlider() {
+  const n = getSelectedNode(); if (!n) return;
+  const vx = parseFloat(document.getElementById('sliderX').value);
+  const vy = parseFloat(document.getElementById('sliderY').value);
+  const vz = parseFloat(document.getElementById('sliderZ').value);
+  if (toolMode === 'ROTATE') n.rot = [vx, vy, vz];
+  else if (toolMode === 'SCALE') n.scale = [vx, vy, vz];
+  else n.pos = [vx, vy, vz];
+  document.getElementById('valX').textContent = vx.toFixed(1);
+  document.getElementById('valY').textContent = vy.toFixed(1);
+  document.getElementById('valZ').textContent = vz.toFixed(1);
+}
+
+function buildPrimitiveData(kind) {
+  const v = [], f = [];
+  let nameFa = 'مکعب مهندسی';
+  if (kind === 'CUBE') {
+    const s = 0.85;
+    [[-s,-s,-s],[s,-s,-s],[s,s,-s],[-s,s,-s],[-s,-s,s],[s,-s,s],[s,s,s],[-s,s,s]].forEach(p => v.push(p));
+    [[0,1,2],[0,2,3],[4,6,5],[4,7,6],[0,4,5],[0,5,1],[2,6,7],[2,7,3],[0,3,7],[0,7,4],[1,5,6],[1,6,2]].forEach(t => f.push(t));
+  } else if (kind === 'SPHERE' || kind === 'ICOSPHERE' || kind === 'GEM') {
+    nameFa = kind === 'GEM' ? 'الماس تراش‌خورده' : (kind === 'ICOSPHERE' ? 'آیکوسفر' : 'کره');
+    const stacks = kind === 'GEM' ? 5 : (kind === 'ICOSPHERE' ? 8 : 14);
+    const slices = kind === 'GEM' ? 8 : (kind === 'ICOSPHERE' ? 12 : 20);
+    const r = 1.0;
+    for (let i = 0; i <= stacks; i++) {
+      const phi = Math.PI * i / stacks;
+      for (let j = 0; j <= slices; j++) {
+        const th = 2 * Math.PI * j / slices;
+        v.push([r*Math.sin(phi)*Math.cos(th), r*Math.cos(phi), r*Math.sin(phi)*Math.sin(th)]);
+      }
+    }
+    for (let i = 0; i < stacks; i++) {
+      for (let j = 0; j < slices; j++) {
+        const a = i*(slices+1)+j, b = a+slices+1;
+        f.push([a,b,a+1]); f.push([b,b+1,a+1]);
+      }
+    }
+  } else if (kind === 'CYLINDER' || kind === 'GEAR' || kind === 'STAR') {
+    nameFa = kind === 'GEAR' ? 'چرخ‌دنده صنعتی' : (kind === 'STAR' ? 'ستاره سه‌بعدی' : 'استوانه');
+    const seg = kind === 'GEAR' ? 24 : (kind === 'STAR' ? 10 : 20);
+    const h = kind === 'GEAR' ? 0.42 : (kind === 'STAR' ? 0.35 : 0.95);
+    v.push([0,h,0]); v.push([0,-h,0]);
+    for (let i = 0; i < seg; i++) {
+      const a = 2*Math.PI*i/seg;
+      let r = 0.9;
+      if (kind === 'GEAR') r = (i % 2 === 0) ? 1.2 : 0.88;
+      if (kind === 'STAR') r = (i % 2 === 0) ? 1.25 : 0.52;
+      v.push([r*Math.cos(a), h, r*Math.sin(a)]);
+      v.push([r*Math.cos(a), -h, r*Math.sin(a)]);
+    }
+    for (let i = 0; i < seg; i++) {
+      const n = (i+1)%seg;
+      const t0 = 2+i*2, b0 = 3+i*2, t1 = 2+n*2, b1 = 3+n*2;
+      f.push([0,t1,t0]); f.push([1,b0,b1]);
+      f.push([t0,t1,b1]); f.push([t0,b1,b0]);
+    }
+  } else if (kind === 'CONE' || kind === 'PYRAMID') {
+    nameFa = kind === 'PYRAMID' ? 'هرم چهاروجهی' : 'مخروط';
+    const seg = kind === 'PYRAMID' ? 4 : 20, r = 1.0, h = 1.05;
+    v.push([0,h,0]); v.push([0,-h,0]);
+    for (let i = 0; i < seg; i++) {
+      const a = 2*Math.PI*i/seg + (kind === 'PYRAMID' ? Math.PI/4 : 0);
+      v.push([r*Math.cos(a), -h, r*Math.sin(a)]);
+    }
+    for (let i = 0; i < seg; i++) {
+      const c = 2+i, nx = 2+((i+1)%seg);
+      f.push([0,nx,c]); f.push([1,c,nx]);
+    }
+  } else if (kind === 'TORUS') {
+    nameFa = 'حلقه تورس';
+    const R = 0.85, r = 0.32, uSeg = 22, vSeg = 12;
+    for (let i = 0; i <= uSeg; i++) {
+      const u = 2*Math.PI*i/uSeg;
+      for (let j = 0; j <= vSeg; j++) {
+        const vv = 2*Math.PI*j/vSeg;
+        v.push([(R + r*Math.cos(vv))*Math.cos(u), r*Math.sin(vv), (R + r*Math.cos(vv))*Math.sin(u)]);
+      }
+    }
+    for (let i = 0; i < uSeg; i++) {
+      for (let j = 0; j < vSeg; j++) {
+        const a = i*(vSeg+1)+j, b = (i+1)*(vSeg+1)+j;
+        f.push([a,b,a+1]); f.push([b,b+1,a+1]);
+      }
+    }
+  } else if (kind === 'CAPSULE') {
+    nameFa = 'کپسول';
+    const stacks = 12, slices = 16, r = 0.65;
+    for (let i = 0; i <= stacks; i++) {
+      const phi = Math.PI * i / stacks;
+      const yOff = phi < Math.PI/2 ? 0.45 : -0.45;
+      for (let j = 0; j <= slices; j++) {
+        const th = 2 * Math.PI * j / slices;
+        v.push([r*Math.sin(phi)*Math.cos(th), r*Math.cos(phi)+yOff, r*Math.sin(phi)*Math.sin(th)]);
+      }
+    }
+    for (let i = 0; i < stacks; i++) {
+      for (let j = 0; j < slices; j++) {
+        const a = i*(slices+1)+j, b = a+slices+1;
+        f.push([a,b,a+1]); f.push([b,b+1,a+1]);
+      }
+    }
+  } else if (kind === 'VASE') {
+    nameFa = 'گلدان مارپیچ';
+    const rings = 14, seg = 18;
+    for (let i = 0; i <= rings; i++) {
+      const t = i / rings, y = -1.0 + t * 2.0;
+      const r = 0.55 + 0.32 * Math.sin(t * Math.PI * 1.6) + 0.12 * Math.cos(t * 6);
+      const twist = t * 1.4;
+      for (let j = 0; j <= seg; j++) {
+        const a = 2 * Math.PI * j / seg + twist;
+        v.push([r * Math.cos(a), y, r * Math.sin(a)]);
+      }
+    }
+    for (let i = 0; i < rings; i++) {
+      for (let j = 0; j < seg; j++) {
+        const a = i*(seg+1)+j, b = a+seg+1;
+        f.push([a,b,a+1]); f.push([b,b+1,a+1]);
+      }
+    }
+  }
+  return {
+    id: uid(), name: kind, nameFa,
+    verts: v, faces: f,
+    pos: [0, 0, 0], rot: [0, 0, 0], scale: [1, 1, 1],
+    color: '#00E5FF', metallic: 0.35, roughness: 0.3, texType: 'NONE', texScale: 5
+  };
+}
+
+function spawnPrimitive(kind, append) {
+  pushUndo();
+  const node = buildPrimitiveData(kind);
+  if (append && nodes.length > 0) {
+    node.pos = [(nodes.length % 3 - 1) * 1.1, 0, 0];
+    nodes.push(node);
+  } else {
+    nodes = [node];
+  }
+  selectedId = node.id;
+  syncUiFromSelected();
+  showToast(`مدل «${node.nameFa}» آماده شد`);
+}
+
+function addPrimFromLib(kind) {
+  const append = document.getElementById('chkAppendMode').checked;
+  spawnPrimitive(kind, append);
+  selectTab('VIEWPORT');
+}
+
+function loadReadyPreset(preset) {
+  pushUndo();
+  nodes = [];
+  if (preset === 'MECHA_BOT') {
+    const torso = buildPrimitiveData('CUBE'); torso.nameFa = 'بدنه ربات'; torso.scale = [0.85, 1.0, 0.55]; torso.color = '#00E5FF';
+    const head = buildPrimitiveData('CUBE'); head.nameFa = 'سر ربات'; head.pos = [0, 1.25, 0]; head.scale = [0.55, 0.45, 0.5]; head.color = '#F59E0B';
+    const armL = buildPrimitiveData('CYLINDER'); armL.nameFa = 'بازوی چپ'; armL.pos = [-1.1, 0.1, 0]; armL.scale = [0.25, 0.75, 0.25]; armL.color = '#3B82F6';
+    const armR = buildPrimitiveData('CYLINDER'); armR.nameFa = 'بازوی راست'; armR.pos = [1.1, 0.1, 0]; armR.scale = [0.25, 0.75, 0.25]; armR.color = '#3B82F6';
+    nodes = [torso, head, armL, armR];
+  } else if (preset === 'CONCEPT_CAR') {
+    const body = buildPrimitiveData('CUBE'); body.nameFa = 'شاسی خودرو'; body.scale = [1.5, 0.35, 0.85]; body.pos = [0, -0.25, 0]; body.color = '#EF4444';
+    const cabin = buildPrimitiveData('CUBE'); cabin.nameFa = 'کابین'; cabin.scale = [0.85, 0.3, 0.7]; cabin.pos = [-0.1, 0.22, 0]; cabin.color = '#00E5FF';
+    nodes = [body, cabin];
+  } else if (preset === 'GEAR_ASSEMBLY') {
+    const g1 = buildPrimitiveData('GEAR'); g1.nameFa = 'چرخ‌دنده اصلی'; g1.pos = [-0.85, 0, 0]; g1.color = '#F59E0B';
+    const g2 = buildPrimitiveData('GEAR'); g2.nameFa = 'چرخ‌دنده فرعی'; g2.pos = [0.95, 0, 0]; g2.scale = [0.75, 1, 0.75]; g2.color = '#00E5FF';
+    nodes = [g1, g2];
+  } else if (preset === 'SKYSCRAPER') {
+    const tower = buildPrimitiveData('VASE'); tower.nameFa = 'برج مارپیچ'; tower.scale = [0.85, 1.35, 0.85]; tower.color = '#38BDF8'; tower.texType = 'CYBER';
+    nodes = [tower];
+  } else if (preset === 'DIAMOND_RING') {
+    const ring = buildPrimitiveData('TORUS'); ring.nameFa = 'رکاب طلا'; ring.rot = [90, 0, 0]; ring.color = '#FACC15'; ring.metallic = 0.9;
+    const gem = buildPrimitiveData('GEM'); gem.nameFa = 'نگین الماس'; gem.pos = [0, 0.95, 0]; gem.scale = [0.45, 0.45, 0.45]; gem.color = '#00E5FF';
+    nodes = [ring, gem];
+  } else if (preset === 'STARFIGHTER') {
+    const hull = buildPrimitiveData('CONE'); hull.nameFa = 'بدنه سفینه'; hull.rot = [0, 0, -90]; hull.scale = [0.45, 1.4, 0.45]; hull.color = '#E2E8F0';
+    const wings = buildPrimitiveData('CUBE'); wings.nameFa = 'بال‌های دلتا'; wings.scale = [0.55, 0.08, 1.65]; wings.color = '#00E5FF';
+    nodes = [hull, wings];
+  }
+  selectedId = nodes[0].id;
+  selectTab('VIEWPORT');
+  showToast('صحنه سه‌بعدی آماده بارگذاری شد');
+}
+
+function clearScene() {
+  pushUndo();
+  const cube = buildPrimitiveData('CUBE');
+  nodes = [cube];
+  selectedId = cube.id;
+  paintStrokes = [];
+  syncUiFromSelected();
+  showToast('میز کار خلوت و بازنشانی شد');
+}
+
+function duplicateSelected() {
+  const n = getSelectedNode(); if (!n) return;
+  pushUndo();
+  const copy = JSON.parse(JSON.stringify(n));
+  copy.id = uid(); copy.pos[0] += 0.65;
+  nodes.push(copy); selectedId = copy.id;
+  syncUiFromSelected();
+  showToast('کپی از مدل ایجاد شد');
+}
+
+function deleteSelected() {
+  if (nodes.length <= 1) { clearScene(); return; }
+  pushUndo();
+  nodes = nodes.filter(n => n.id !== selectedId);
+  selectedId = nodes[0].id;
+  syncUiFromSelected();
+  showToast('قطعه انتخاب‌شده حذف شد');
+}
+
+function modSubdivide(smooth) {
+  const n = getSelectedNode(); if (!n) return;
+  if (n.faces.length > 3200) { showToast('حداکثر جزئیات مش اعمال شده است'); return; }
+  pushUndo();
+  const nv = n.verts.map(p => p.slice()), nf = [], midCache = {};
+  function getMid(i1, i2) {
+    const k = i1 < i2 ? i1+'_'+i2 : i2+'_'+i1;
+    if (midCache[k] !== undefined) return midCache[k];
+    const p1 = nv[i1], p2 = nv[i2];
+    let mx = (p1[0]+p2[0])*0.5, my = (p1[1]+p2[1])*0.5, mz = (p1[2]+p2[2])*0.5;
+    if (smooth) {
+      const l1 = Math.hypot(p1[0],p1[1],p1[2]), l2 = Math.hypot(p2[0],p2[1],p2[2]), lm = Math.hypot(mx,my,mz) || 1;
+      const targetLen = (l1 + l2) * 0.5;
+      mx *= (0.85 + 0.15 * (targetLen / lm));
+      my *= (0.85 + 0.15 * (targetLen / lm));
+      mz *= (0.85 + 0.15 * (targetLen / lm));
+    }
+    const idx = nv.length; nv.push([mx, my, mz]);
+    return (midCache[k] = idx);
+  }
+  n.faces.forEach(t => {
+    const a = t[0], b = t[1], c = t[2];
+    const ab = getMid(a,b), bc = getMid(b,c), ca = getMid(c,a);
+    nf.push([a,ab,ca], [b,bc,ab], [c,ca,bc], [ab,bc,ca]);
+  });
+  n.verts = nv; n.faces = nf;
+  updateEngineeringStatsUI(); syncUiFromSelected();
+  showToast(`Subdivide انجام شد (${nf.length} مثلث)`);
+}
+
+function modExtrude(amount) {
+  const n = getSelectedNode(); if (!n) return;
+  pushUndo();
+  n.verts = n.verts.map(p => {
+    const l = Math.hypot(p[0], p[1], p[2]) || 1;
+    return [p[0] + (p[0]/l)*amount, p[1] + (p[1]/l)*amount, p[2] + (p[2]/l)*amount];
+  });
+  updateEngineeringStatsUI(); showToast('Extrude روی سطوح اعمال شد');
+}
+
+function modSmooth() {
+  const n = getSelectedNode(); if (!n) return;
+  pushUndo();
+  const adj = n.verts.map(() => []);
+  n.faces.forEach(f => {
+    adj[f[0]].push(f[1], f[2]); adj[f[1]].push(f[0], f[2]); adj[f[2]].push(f[0], f[1]);
+  });
+  n.verts = n.verts.map((p, i) => {
+    const nb = adj[i]; if (!nb.length) return p;
+    let sx = 0, sy = 0, sz = 0;
+    nb.forEach(idx => { sx += n.verts[idx][0]; sy += n.verts[idx][1]; sz += n.verts[idx][2]; });
+    sx /= nb.length; sy /= nb.length; sz /= nb.length;
+    return [p[0]*0.5 + sx*0.5, p[1]*0.5 + sy*0.5, p[2]*0.5 + sz*0.5];
+  });
+  updateEngineeringStatsUI(); showToast('نرم‌سازی Laplacian Smooth انجام شد');
+}
+
+function modTwist(anglePerUnit) {
+  const n = getSelectedNode(); if (!n) return;
+  pushUndo();
+  n.verts = n.verts.map(p => {
+    const a = p[1] * anglePerUnit, c = Math.cos(a), s = Math.sin(a);
+    return [p[0]*c - p[2]*s, p[1], p[0]*s + p[2]*c];
+  });
+  updateEngineeringStatsUI(); showToast('پیچش حول محور Y اعمال شد');
+}
+
+function modTaper(strength) {
+  const n = getSelectedNode(); if (!n) return;
+  pushUndo();
+  n.verts = n.verts.map(p => {
+    const factor = Math.max(0.2, 1.0 - p[1] * strength * 0.5);
+    return [p[0] * factor, p[1], p[2] * factor];
+  });
+  updateEngineeringStatsUI(); showToast('مخروطی‌سازی (Taper) اعمال شد');
+}
+
+function modInflate(amount) {
+  const n = getSelectedNode(); if (!n) return;
+  pushUndo();
+  n.verts = n.verts.map(p => {
+    const d = Math.hypot(p[0], p[1], p[2]) || 1;
+    const s = (d + amount) / d;
+    return [p[0]*s, p[1]*s, p[2]*s];
+  });
+  updateEngineeringStatsUI(); showToast('تورم حجمی (Inflate) اعمال شد');
+}
+
+function modDecimate() {
+  const n = getSelectedNode(); if (!n) return;
+  pushUndo();
+  const grid = 0.22;
+  n.verts = n.verts.map(p => [
+    Math.round(p[0]/grid)*grid, Math.round(p[1]/grid)*grid, Math.round(p[2]/grid)*grid
+  ]);
+  updateEngineeringStatsUI(); showToast('بهینه‌سازی Voxel انجام شد');
+}
+
+function modMirrorX() {
+  const n = getSelectedNode(); if (!n) return;
+  pushUndo();
+  const copy = JSON.parse(JSON.stringify(n));
+  copy.id = uid(); copy.pos[0] = -n.pos[0] || 1.2;
+  copy.verts = copy.verts.map(p => [-p[0], p[1], p[2]]);
+  copy.faces = copy.faces.map(f => [f[0], f[2], f[1]]);
+  nodes.push(copy); selectedId = copy.id;
+  showToast('قرینه مدل در محور X ساخته شد');
+}
+
+function modDropToFloor() {
+  const n = getSelectedNode(); if (!n) return;
+  pushUndo();
+  let minY = Infinity;
+  getWorldVerts(n).forEach(v => { if (v[1] < minY) minY = v[1]; });
+  if (isFinite(minY)) n.pos[1] += (-1.0 - minY);
+  syncUiFromSelected();
+  showToast('مدل روی کف صفحه چاپ سه‌بعدی تراز شد');
+}
+
+function modWeldAll() {
+  if (nodes.length <= 1) { showToast('فقط یک قطعه در صحنه وجود دارد'); return; }
+  pushUndo();
+  const mergedV = [], mergedF = [];
+  nodes.forEach(n => {
+    const off = mergedV.length;
+    getWorldVerts(n).forEach(v => mergedV.push(v));
+    n.faces.forEach(f => mergedF.push([f[0]+off, f[1]+off, f[2]+off]));
+  });
+  const base = nodes[0];
+  base.verts = mergedV; base.faces = mergedF;
+  base.pos = [0,0,0]; base.rot = [0,0,0]; base.scale = [1,1,1];
+  base.nameFa = 'مدل یکپارچه (Welded)';
+  nodes = [base]; selectedId = base.id;
+  showToast('تمام قطعات در یک مش واحد ادغام شدند');
+}
+
+function updateEngineeringStatsUI() {
+  let minX=1e9, minY=1e9, minZ=1e9, maxX=-1e9, maxY=-1e9, maxZ=-1e9;
+  nodes.forEach(n => {
+    getWorldVerts(n).forEach(v => {
+      if (v[0]<minX) minX=v[0]; if (v[0]>maxX) maxX=v[0];
+      if (v[1]<minY) minY=v[1]; if (v[1]>maxY) maxY=v[1];
+      if (v[2]<minZ) minZ=v[2]; if (v[2]>maxZ) maxZ=v[2];
+    });
+  });
+  const w = Math.max(1, (maxX - minX) * 20), h = Math.max(1, (maxY - minY) * 20), d = Math.max(1, (maxZ - minZ) * 20);
+  const volCm3 = (w * h * d * 0.52) / 1000;
+  const weightG = volCm3 * 1.24;
+  document.getElementById('stDim').textContent = `${w.toFixed(0)}×${h.toFixed(0)}×${d.toFixed(0)}`;
+  document.getElementById('stVol').textContent = `${volCm3.toFixed(1)} cm³`;
+  document.getElementById('stWeight').textContent = `${weightG.toFixed(1)} g`;
+}
+
+const paintCanvas = document.getElementById('texPaintCanvas');
+const paintCtx = paintCanvas.getContext('2d');
+let isPainting2D = false;
+
+function setBrushColor(hex, el) {
+  brushColor = hex;
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+function setProceduralTex(type) {
+  const n = getSelectedNode(); if (!n) return;
+  n.texType = type; draw2DTexturePreview();
+  showToast(`تکسچر «${type}» روی مدل اعمال شد`);
+}
+function setMatColor(hex) {
+  const n = getSelectedNode(); if (!n) return;
+  n.color = hex; draw2DTexturePreview();
+}
+function updatePbrSliders() {
+  const n = getSelectedNode(); if (!n) return;
+  n.metallic = parseFloat(document.getElementById('rngMetallic').value);
+  n.roughness = parseFloat(document.getElementById('rngRoughness').value);
+  n.texScale = parseFloat(document.getElementById('rngTexScale').value);
+  draw2DTexturePreview();
+}
+function clearPaintStrokes() {
+  paintStrokes = []; draw2DTexturePreview();
+  showToast('قلم‌موهای نقاشی پاک شدند');
+}
+function randomizeTexture() {
+  const types = ['CHECKER','CARBON','MARBLE','CYBER','WOOD','CIRCUIT','BRICK','SCALES'];
+  const cols = ['#00E5FF','#F59E0B','#10B981','#EF4444','#3B82F6','#A855F7'];
+  const n = getSelectedNode(); if (!n) return;
+  n.texType = types[Math.floor(Math.random() * types.length)];
+  n.color = cols[Math.floor(Math.random() * cols.length)];
+  draw2DTexturePreview();
+  showToast('تکسچر و رنگ تصادفی تولید شد');
+}
+
+function sampleProceduralUV(u, v, n) {
+  const base = hexToRgb(n.color);
+  const sc = n.texScale || 5;
+  const t = n.texType || 'NONE';
+  let rgb = base.slice();
+
+  if (n.photoGrid && n.photoSize > 0) {
+    const dim = n.photoSize;
+    const px = Math.max(0, Math.min(dim - 1, Math.floor(u * (dim - 1))));
+    const py = Math.max(0, Math.min(dim - 1, Math.floor((1 - v) * (dim - 1))));
+    const c = n.photoGrid[py * dim + px];
+    if (c) rgb = c.slice();
+  } else if (t === 'CHECKER') {
+    if ((Math.floor(u * sc * 2) + Math.floor(v * sc * 2)) & 1) rgb = [24, 34, 56];
+  } else if (t === 'CARBON') {
+    const c = (Math.sin(u * sc * 18) * Math.cos(v * sc * 18)) > 0 ? 0.55 : 0.22;
+    rgb = [base[0]*c, base[1]*c, base[2]*c];
+  } else if (t === 'MARBLE') {
+    const w = 0.5 + 0.5 * Math.sin((u + v) * sc * 3 + Math.sin(u * sc * 4) * 1.8);
+    rgb = [base[0]*w + 245*(1-w), base[1]*w + 245*(1-w), base[2]*w + 250*(1-w)];
+  } else if (t === 'CYBER') {
+    const gx = Math.abs((u * sc * 2) % 1), gy = Math.abs((v * sc * 2) % 1);
+    if (gx < 0.12 || gy < 0.12) rgb = [0, 229, 255]; else rgb = [18, 26, 46];
+  } else if (t === 'WOOD') {
+    const grain = 0.5 + 0.5 * Math.sin(u * sc * 10 + Math.sin(v * 6) * 2);
+    rgb = [140 * grain + 55, 85 * grain + 30, 35 * grain + 15];
+  } else if (t === 'CIRCUIT') {
+    const cx = Math.floor(u * sc * 3), cy = Math.floor(v * sc * 3);
+    if ((cx * 7 + cy * 13) % 5 === 0) rgb = [16, 185, 129]; else rgb = [15, 35, 30];
+  } else if (t === 'BRICK') {
+    const row = Math.floor(v * sc * 2), col = (u * sc * 2 + (row & 1) * 0.5) % 1;
+    const rowF = (v * sc * 2) % 1;
+    if (rowF < 0.12 || col < 0.08) rgb = [200, 205, 215];
+  } else if (t === 'SCALES') {
+    const s = Math.sin(u * sc * 12) * Math.sin(v * sc * 12);
+    if (s < 0) rgb = [base[0]*0.45, base[1]*0.45, base[2]*0.45];
+  }
+
+  for (let i = paintStrokes.length - 1; i >= 0; i--) {
+    const st = paintStrokes[i];
+    if (Math.hypot(u - st.u, v - st.v) <= st.r) {
+      rgb = hexToRgb(st.color);
+      break;
+    }
+  }
+  return rgb;
+}
+
+function draw2DTexturePreview() {
+  const n = getSelectedNode(); if (!n) return;
+  const w = paintCanvas.width, h = paintCanvas.height;
+  const img = paintCtx.createImageData(w, h);
+  for (let y = 0; y < h; y++) {
+    const v = y / h;
+    for (let x = 0; x < w; x++) {
+      const u = x / w;
+      const rgb = sampleProceduralUV(u, v, n);
+      const idx = (y * w + x) * 4;
+      img.data[idx] = rgb[0]; img.data[idx+1] = rgb[1]; img.data[idx+2] = rgb[2]; img.data[idx+3] = 255;
+    }
+  }
+  paintCtx.putImageData(img, 0, 0);
+}
+
+function addStrokeFromEvent(e) {
+  const rect = paintCanvas.getBoundingClientRect();
+  const u = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const v = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+  paintStrokes.push({ u, v, r: 0.075, color: brushColor });
+  if (paintStrokes.length > 260) paintStrokes.shift();
+  draw2DTexturePreview();
+}
+paintCanvas.addEventListener('pointerdown', e => { isPainting2D = true; addStrokeFromEvent(e); });
+window.addEventListener('pointerup', () => { isPainting2D = false; });
+paintCanvas.addEventListener('pointermove', e => { if (isPainting2D) addStrokeFromEvent(e); });
+
+function downloadTexturePng() {
+  draw2DTexturePreview();
+  paintCanvas.toBlob(blob => {
+    if (blob) triggerDownload(blob, 'polyforge_texture.png');
+  }, 'image/png');
+}
+
+function setShading(m) { shadingMode = m; showToast(`حالت نمایش: ${m}`); }
+function setLighting(l) { lightingMode = l; showToast(`نورپردازی: ${l}`); }
+
+function toggleOrtho() {
+  isOrtho = !isOrtho;
+  const b = document.getElementById('btnOrtho');
+  b.textContent = isOrtho ? 'ORTHO' : 'PERSP';
+  b.classList.toggle('active', isOrtho);
+}
+function setCamPreset(y, p, d) { camYaw = y; camPitch = p; camDist = d; panX = 0; panY = 0; }
+function toggleWire() { showWire = !showWire; document.getElementById('btnWire').classList.toggle('active', showWire); }
+function toggleVerts() { showVerts = !showVerts; document.getElementById('btnVerts').classList.toggle('active', showVerts); }
+function toggleDims() { showDims = !showDims; document.getElementById('btnDims').classList.toggle('active', showDims); }
+function toggleSpin() { autoSpin = !autoSpin; document.getElementById('btnSpin').classList.toggle('active', autoSpin); }
+
+const canvas = document.getElementById('viewport');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  if (rect.width < 10 || rect.height < 10) return;
+  canvas.width = rect.width * window.devicePixelRatio;
+  canvas.height = rect.height * window.devicePixelRatio;
+  ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+}
+window.addEventListener('resize', resizeCanvas);
+
+let dragging3D = false, lastX = 0, lastY = 0;
+canvas.addEventListener('pointerdown', e => { dragging3D = true; lastX = e.clientX; lastY = e.clientY; });
+window.addEventListener('pointerup', () => dragging3D = false);
+window.addEventListener('pointermove', e => {
+  if (!dragging3D) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  const n = getSelectedNode();
+  if (toolMode === 'MOVE' && n) {
+    n.pos[0] += dx * 0.01; n.pos[1] -= dy * 0.01; syncUiFromSelected();
+  } else if (toolMode === 'ROTATE' && n) {
+    n.rot[1] += dx * 0.6; n.rot[0] += dy * 0.6; syncUiFromSelected();
+  } else if (toolMode === 'SCALE' && n) {
+    const s = Math.max(0.2, n.scale[0] + (dx - dy) * 0.005);
+    n.scale = [s, s, s]; syncUiFromSelected();
+  } else {
+    camYaw += dx * 0.008;
+    camPitch = Math.max(-1.45, Math.min(1.45, camPitch + dy * 0.008));
+  }
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  camDist = Math.max(1.8, Math.min(18, camDist + e.deltaY * 0.003));
+}, { passive: false });
+
+function hexToRgb(hex) {
+  const n = parseInt((hex || '#00E5FF').replace('#',''), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function getWorldVerts(n) {
+  const rx = n.rot[0]*Math.PI/180, ry = n.rot[1]*Math.PI/180, rz = n.rot[2]*Math.PI/180;
+  const cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry), cz = Math.cos(rz), sz = Math.sin(rz);
+  return n.verts.map(v => {
+    let x = v[0]*n.scale[0], y = v[1]*n.scale[1], z = v[2]*n.scale[2];
+    let y1 = y*cx - z*sx, z1 = y*sx + z*cx;
+    let x2 = x*cy + z1*sy, z2 = -x*sy + z1*cy;
+    let x3 = x2*cz - y1*sz, y3 = x2*sz + y1*cz;
+    return [x3 + n.pos[0], y3 + n.pos[1], z3 + n.pos[2]];
+  });
+}
+
+function renderLoop() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const w = rect.width, h = rect.height;
+  if (w > 10 && h > 10) {
+    ctx.clearRect(0, 0, w, h);
+    if (autoSpin) camYaw += 0.012;
+
+    const cy = Math.cos(camYaw), sy = Math.sin(camYaw);
+    const cp = Math.cos(camPitch), sp = Math.sin(camPitch);
+    const baseScale = Math.min(w, h) * 0.52;
+    const cx = w * 0.5 + panX, centerY = h * 0.5 + panY;
+
+    function proj(x, y, z) {
+      const x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
+      const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp + camDist;
+      if (z2 < 0.3) return null;
+      const f = isOrtho ? (baseScale / (camDist * 0.6)) : ((baseScale * 3.8) / z2);
+      return [cx + x1 * f, centerY - y2 * f, z2];
+    }
+
+    const gy = -1.0;
+    for (let i = -8; i <= 8; i++) {
+      const a = proj(-8, gy, i), b = proj(8, gy, i);
+      if (a && b) {
+        ctx.strokeStyle = i === 0 ? 'rgba(239,68,68,0.75)' : 'rgba(51,65,85,0.38)';
+        ctx.lineWidth = i === 0 ? 1.8 : 0.9;
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      }
+      const c = proj(i, gy, -8), d = proj(i, gy, 8);
+      if (c && d) {
+        ctx.strokeStyle = i === 0 ? 'rgba(59,130,246,0.75)' : 'rgba(51,65,85,0.38)';
+        ctx.lineWidth = i === 0 ? 1.8 : 0.9;
+        ctx.beginPath(); ctx.moveTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.stroke();
+      }
+    }
+
+    const tris = [], dots = [];
+    let vCount = 0, tCount = 0;
+
+    nodes.forEach(n => {
+      const wVerts = getWorldVerts(n);
+      vCount += wVerts.length; tCount += n.faces.length;
+      const pVerts = wVerts.map(v => {
+        const p = proj(v[0], v[1], v[2]);
+        if (p && showVerts) dots.push(p);
+        return p;
+      });
+
+      const hasTex = (n.texType && n.texType !== 'NONE') || (n.photoGrid && n.photoSize > 0) || paintStrokes.length > 0;
+      const baseRgb = shadingMode === 'CLAY' ? [217, 119, 87] : hexToRgb(n.color);
+
+      n.faces.forEach(f => {
+        const s0 = pVerts[f[0]], s1 = pVerts[f[1]], s2 = pVerts[f[2]];
+        if (!s0 || !s1 || !s2) return;
+        const v0 = wVerts[f[0]], v1 = wVerts[f[1]], v2 = wVerts[f[2]];
+        const ux = v1[0]-v0[0], uy = v1[1]-v0[1], uz = v1[2]-v0[2];
+        const vx = v2[0]-v0[0], vy = v2[1]-v0[1], vz = v2[2]-v0[2];
+        let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+        const len = Math.hypot(nx, ny, nz) || 1;
+        nx /= len; ny /= len; nz /= len;
+
+        let rgb = baseRgb;
+        if (hasTex && shadingMode !== 'CLAY') {
+          const l0 = n.verts[f[0]], l1 = n.verts[f[1]], l2 = n.verts[f[2]];
+          const lx = (l0[0]+l1[0]+l2[0])/3, ly = (l0[1]+l1[1]+l2[1])/3, lz = (l0[2]+l1[2]+l2[2])/3;
+          let u, v;
+          if (n.photoGrid && n.isPhotoRelief) {
+            u = Math.max(0, Math.min(1, (lx / 2.1) + 0.5));
+            v = Math.max(0, Math.min(1, 1 - ((lz / 2.1) + 0.5)));
+          } else if (n.photoGrid) {
+            u = Math.max(0, Math.min(1, (lx * 0.5) + 0.5));
+            v = Math.max(0, Math.min(1, (ly * 0.5) + 0.5));
+          } else {
+            u = ((Math.atan2(lz, lx) / (2 * Math.PI)) + 0.5) % 1;
+            v = Math.max(0, Math.min(1, (ly + 1) * 0.5));
+          }
+          rgb = sampleProceduralUV(u, v, n);
+        }
+
+        let lx = 0.55, ly = 0.72, lz = 0.42, lBoost = 1.0;
+        if (lightingMode === 'SUNSET') { lx = 0.75; ly = 0.35; lz = 0.55; lBoost = 1.08; }
+        if (lightingMode === 'ARCTIC') { lBoost = 1.16; }
+
+        const light = Math.max(0.24, Math.abs(nx*lx + ny*ly + nz*lz)) * lBoost;
+        const shininess = Math.max(6, (1.05 - (n.roughness || 0.3)) * 28);
+        const spec = Math.pow(Math.max(0, ny*0.7 + nz*0.6), shininess) * (40 + (n.metallic || 0.3)*55);
+        const alpha = shadingMode === 'XRAY' ? 0.42 : 1.0;
+
+        tris.push({
+          s0, s1, s2, z: (s0[2]+s1[2]+s2[2])/3,
+          fill: `rgba(${Math.min(255,Math.round(rgb[0]*light+spec))},${Math.min(255,Math.round(rgb[1]*light+spec))},${Math.min(255,Math.round(rgb[2]*light+spec))},${alpha})`
+        });
+      });
+    });
+
+    tris.sort((a,b) => b.z - a.z);
+    tris.forEach(t => {
+      ctx.beginPath(); ctx.moveTo(t.s0[0], t.s0[1]); ctx.lineTo(t.s1[0], t.s1[1]); ctx.lineTo(t.s2[0], t.s2[1]); ctx.closePath();
+      ctx.fillStyle = t.fill; ctx.fill();
+      if (showWire) { ctx.strokeStyle = 'rgba(0,229,255,0.55)'; ctx.lineWidth = 0.85; ctx.stroke(); }
+    });
+
+    if (showVerts) {
+      ctx.fillStyle = '#FF9100';
+      dots.forEach(d => { ctx.beginPath(); ctx.arc(d[0], d[1], 2.5, 0, Math.PI*2); ctx.fill(); });
+    }
+
+    if (showDims) {
+      const pTop = proj(0, 1.15, 0);
+      if (pTop) {
+        ctx.fillStyle = '#00E5FF'; ctx.font = 'bold 11px monospace';
+        ctx.fillText(document.getElementById('stDim').textContent + ' mm', pTop[0] - 34, pTop[1] - 8);
+      }
+    }
+
+    const gx = w - 34, gyCompass = 64, arm = 16;
+    ctx.fillStyle = 'rgba(17,24,39,0.75)';
+    ctx.beginPath(); ctx.arc(gx, gyCompass, 22, 0, Math.PI*2); ctx.fill();
+    [[1,0,0,'#EF4444'],[0,1,0,'#22C55E'],[0,0,1,'#3B82F6']].forEach(([ax,ay,az,col]) => {
+      const x1 = ax*cy + az*sy, z1 = -ax*sy + az*cy, y2 = ay*cp - z1*sp;
+      ctx.strokeStyle = col; ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(gx, gyCompass); ctx.lineTo(gx + x1*arm, gyCompass - y2*arm); ctx.stroke();
+    });
+
+    document.getElementById('headerStats').textContent = `${nodes.length} Obj • ${vCount}V • ${tCount}T`;
+  }
+  requestAnimationFrame(renderLoop);
+}
+
+function getProjectBaseName() {
+  return (document.getElementById('inpProjectName').value || 'PolyForge_Model').trim().replace(/\s+/g, '_');
+}
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  showToast(`فایل «${filename}» آماده دانلود شد`);
+}
+
+function downloadOBJ() {
+  let out = '# PolyForge 3D Studio OBJ Export\n', offset = 1;
+  nodes.forEach(n => {
+    out += 'o ' + (n.name || 'Mesh') + '\n';
+    getWorldVerts(n).forEach(v => { out += `v ${v[0].toFixed(5)} ${v[1].toFixed(5)} ${v[2].toFixed(5)}\n`; });
+    n.faces.forEach(f => { out += `f ${f[0]+offset} ${f[1]+offset} ${f[2]+offset}\n`; });
+    offset += n.verts.length;
+  });
+  triggerDownload(new Blob([out], {type: 'model/obj'}), getProjectBaseName() + '.obj');
+}
+
+function downloadPLY() {
+  let totalV = 0, totalF = 0;
+  nodes.forEach(n => { totalV += n.verts.length; totalF += n.faces.length; });
+  let out = `ply\nformat ascii 1.0\nelement vertex ${totalV}\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nelement face ${totalF}\nproperty list uchar int vertex_indices\nend_header\n`;
+  nodes.forEach(n => {
+    const rgb = hexToRgb(n.color);
+    getWorldVerts(n).forEach(v => { out += `${v[0].toFixed(4)} ${v[1].toFixed(4)} ${v[2].toFixed(4)} ${rgb[0]} ${rgb[1]} ${rgb[2]}\n`; });
+  });
+  let off = 0;
+  nodes.forEach(n => {
+    n.faces.forEach(f => { out += `3 ${f[0]+off} ${f[1]+off} ${f[2]+off}\n`; });
+    off += n.verts.length;
+  });
+  triggerDownload(new Blob([out], {type: 'application/octet-stream'}), getProjectBaseName() + '.ply');
+}
+
+function downloadSTL() {
+  let totalTris = 0; nodes.forEach(n => totalTris += n.faces.length);
+  const buf = new ArrayBuffer(84 + totalTris * 50), dv = new DataView(buf);
+  dv.setUint32(80, totalTris, true);
+  let pos = 84; const scaleMm = 20.0;
+  nodes.forEach(n => {
+    const wv = getWorldVerts(n);
+    n.faces.forEach(f => {
+      const v0 = wv[f[0]], v1 = wv[f[1]], v2 = wv[f[2]];
+      [0,0,1, v0[0]*scaleMm,v0[1]*scaleMm,v0[2]*scaleMm, v1[0]*scaleMm,v1[1]*scaleMm,v1[2]*scaleMm, v2[0]*scaleMm,v2[1]*scaleMm,v2[2]*scaleMm].forEach(val => { dv.setFloat32(pos, val, true); pos += 4; });
+      dv.setUint16(pos, 0, true); pos += 2;
+    });
+  });
+  triggerDownload(new Blob([buf], {type: 'model/stl'}), getProjectBaseName() + '.stl');
+}
+
+function buildGltfData() {
+  const allPos = []; let minX=1e9, minY=1e9, minZ=1e9, maxX=-1e9, maxY=-1e9, maxZ=-1e9;
+  nodes.forEach(n => {
+    const wv = getWorldVerts(n);
+    n.faces.forEach(f => {
+      [wv[f[0]], wv[f[1]], wv[f[2]]].forEach(v => {
+        allPos.push(v[0], v[1], v[2]);
+        if (v[0]<minX) minX=v[0]; if (v[0]>maxX) maxX=v[0];
+        if (v[1]<minY) minY=v[1]; if (v[1]>maxY) maxY=v[1];
+        if (v[2]<minZ) minZ=v[2]; if (v[2]>maxZ) maxZ=v[2];
+      });
+    });
+  });
+  const floatArr = new Float32Array(allPos), binBytes = new Uint8Array(floatArr.buffer);
+  const gltf = {
+    asset: { version: "2.0", generator: "PolyForge 3D Studio" },
+    scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0, name: getProjectBaseName() }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0 }, mode: 4 }] }],
+    buffers: [{ byteLength: binBytes.byteLength }],
+    bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: binBytes.byteLength, target: 34962 }],
+    accessors: [{ bufferView: 0, componentType: 5126, count: allPos.length / 3, type: "VEC3", min: [minX,minY,minZ], max: [maxX,maxY,maxZ] }]
+  };
+  return { gltf, binBytes };
+}
+
+function downloadGLB() {
+  const { gltf, binBytes } = buildGltfData();
+  let jsonStr = JSON.stringify(gltf); while (jsonStr.length % 4 !== 0) jsonStr += ' ';
+  const jsonBytes = new TextEncoder().encode(jsonStr), binPad = (4 - (binBytes.byteLength % 4)) % 4;
+  const totalLen = 12 + 8 + jsonBytes.byteLength + 8 + binBytes.byteLength + binPad;
+  const out = new ArrayBuffer(totalLen), dv = new DataView(out);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, totalLen, true);
+  dv.setUint32(12, jsonBytes.byteLength, true); dv.setUint32(16, 0x4E4F534A, true);
+  new Uint8Array(out, 20, jsonBytes.byteLength).set(jsonBytes);
+  const binStart = 20 + jsonBytes.byteLength;
+  dv.setUint32(binStart, binBytes.byteLength + binPad, true); dv.setUint32(binStart + 4, 0x004E4942, true);
+  new Uint8Array(out, binStart + 8, binBytes.byteLength).set(binBytes);
+  triggerDownload(new Blob([out], {type: 'model/gltf-binary'}), getProjectBaseName() + '.glb');
+}
+
+function downloadGLTF() {
+  const { gltf, binBytes } = buildGltfData();
+  let binary = '';
+  for (let i = 0; i < binBytes.byteLength; i++) binary += String.fromCharCode(binBytes[i]);
+  gltf.buffers[0].uri = 'data:application/octet-stream;base64,' + btoa(binary);
+  triggerDownload(new Blob([JSON.stringify(gltf, null, 2)], {type: 'model/gltf+json'}), getProjectBaseName() + '.gltf');
+}
+
+function downloadStandaloneHTML() {
+  triggerDownload(new Blob([document.documentElement.outerHTML], {type: 'text/html'}), getProjectBaseName() + '_studio.html');
+}
+
+function openImportModal() {
+  document.getElementById('importModal').style.display = 'flex';
+}
+function closeImportModal() {
+  document.getElementById('importModal').style.display = 'none';
+}
+
+function normalizeMeshVerts(verts) {
+  if (!verts.length) return verts;
+  let minX=1e9, minY=1e9, minZ=1e9, maxX=-1e9, maxY=-1e9, maxZ=-1e9;
+  verts.forEach(p => {
+    if (p[0]<minX) minX=p[0]; if (p[0]>maxX) maxX=p[0];
+    if (p[1]<minY) minY=p[1]; if (p[1]>maxY) maxY=p[1];
+    if (p[2]<minZ) minZ=p[2]; if (p[2]>maxZ) maxZ=p[2];
+  });
+  const cx = (minX+maxX)*0.5, cy = (minY+maxY)*0.5, cz = (minZ+maxZ)*0.5;
+  const span = Math.max(1e-4, maxX-minX, maxY-minY, maxZ-minZ);
+  const sc = 2.0 / span;
+  return verts.map(p => [(p[0]-cx)*sc, (p[1]-cy)*sc, (p[2]-cz)*sc]);
+}
+
+function extractImagePixelGrid(imgEl, dim) {
+  const off = document.createElement('canvas');
+  off.width = dim; off.height = dim;
+  const octx = off.getContext('2d');
+  octx.drawImage(imgEl, 0, 0, dim, dim);
+  const data = octx.getImageData(0, 0, dim, dim).data;
+  const grid = [];
+  for (let i = 0; i < dim * dim; i++) {
+    grid.push([data[i*4], data[i*4+1], data[i*4+2]]);
+  }
+  return grid;
+}
+
+function createPhotoReliefNode(imgEl, fileName) {
+  const res = 34;
+  const grid = extractImagePixelGrid(imgEl, res);
+  const texGrid = extractImagePixelGrid(imgEl, 48);
+  const v = [], f = [];
+  const half = 1.05, baseY = -0.14, reliefH = 0.44;
+
+  for (let gy = 0; gy < res; gy++) {
+    const z = (gy / (res - 1) - 0.5) * 2 * half;
+    for (let gx = 0; gx < res; gx++) {
+      const x = (gx / (res - 1) - 0.5) * 2 * half;
+      const rgb = grid[gy * res + gx];
+      const lum = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+      v.push([x, 0.04 + lum * reliefH, z]);
+    }
+  }
+  const botOff = v.length;
+  for (let gy = 0; gy < res; gy++) {
+    const z = (gy / (res - 1) - 0.5) * 2 * half;
+    for (let gx = 0; gx < res; gx++) {
+      const x = (gx / (res - 1) - 0.5) * 2 * half;
+      v.push([x, baseY, z]);
+    }
+  }
+  for (let gy = 0; gy < res - 1; gy++) {
+    for (let gx = 0; gx < res - 1; gx++) {
+      const i00 = gy * res + gx, i10 = i00 + 1, i01 = (gy + 1) * res + gx, i11 = i01 + 1;
+      f.push([i00, i01, i10], [i10, i01, i11]);
+      const b00 = botOff + i00, b10 = botOff + i10, b01 = botOff + i01, b11 = botOff + i11;
+      f.push([b00, b10, b01], [b10, b11, b01]);
+    }
+  }
+  for (let i = 0; i < res - 1; i++) {
+    const tf0 = i, tf1 = i + 1, bf0 = botOff + tf0, bf1 = botOff + tf1;
+    f.push([tf0, tf1, bf1], [tf0, bf1, bf0]);
+    const tb0 = (res - 1) * res + i, tb1 = tb0 + 1, bb0 = botOff + tb0, bb1 = botOff + tb1;
+    f.push([tb1, tb0, bb0], [tb1, bb0, bb1]);
+    const tl0 = i * res, tl1 = (i + 1) * res, bl0 = botOff + tl0, bl1 = botOff + tl1;
+    f.push([tl1, tl0, bl0], [tl1, bl0, bl1]);
+    const tr0 = i * res + (res - 1), tr1 = (i + 1) * res + (res - 1), br0 = botOff + tr0, br1 = botOff + tr1;
+    f.push([tr0, tr1, br1], [tr0, br1, br0]);
+  }
+
+  return {
+    id: uid(),
+    name: fileName.replace(/\.[^.]+$/, '') || 'Photo_Relief_3D',
+    nameFa: 'مدل سه‌بعدی عکس (' + fileName + ')',
+    color: '#FFFFFF',
+    metallic: 0.18,
+    roughness: 0.35,
+    texType: 'PHOTO',
+    texScale: 1,
+    photoGrid: texGrid,
+    photoSize: 48,
+    isPhotoRelief: true,
+    pos: [0, 0, 0], rot: [0, 0, 0], scale: [1, 1, 1], visible: true,
+    verts: v, faces: f
+  };
+}
+
+function handlePhotoTo3DImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      pushUndo();
+      const reliefNode = createPhotoReliefNode(img, file.name);
+      const append = document.getElementById('chkModalAppend')?.checked || document.getElementById('chkAppendMode')?.checked;
+      if (append && nodes.length > 0) {
+        reliefNode.pos = [1.4, 0, 0];
+        nodes.push(reliefNode);
+      } else {
+        nodes = [reliefNode];
+      }
+      selectedId = reliefNode.id;
+      syncUiFromSelected();
+      updateEngineeringStatsUI();
+      selectTab('VIEWPORT');
+      showToast(`عکس «${file.name}» به مدل سه‌بعدی برجسته تبدیل شد!`);
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function handlePhotoTextureImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const n = getSelectedNode();
+      if (!n) return;
+      pushUndo();
+      n.photoGrid = extractImagePixelGrid(img, 48);
+      n.photoSize = 48;
+      n.texType = 'PHOTO';
+      n.isPhotoRelief = false;
+      draw2DTexturePreview();
+      selectTab('VIEWPORT');
+      showToast(`عکس «${file.name}» به عنوان تکسچر روی مدل اعمال شد!`);
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function parseGltfBufferToMesh(gltf, binBytes) {
+  const v = [], f = [];
+  if (!gltf || !gltf.meshes || !gltf.accessors || !gltf.bufferViews) return { v, f };
+  const dv = new DataView(binBytes.buffer, binBytes.byteOffset, binBytes.byteLength);
+  gltf.meshes.forEach(mesh => {
+    (mesh.primitives || []).forEach(prim => {
+      const posIdx = prim.attributes && prim.attributes.POSITION;
+      if (posIdx === undefined) return;
+      const posAcc = gltf.accessors[posIdx];
+      const posBv = gltf.bufferViews[posAcc.bufferView];
+      const posOff = (posBv.byteOffset || 0) + (posAcc.byteOffset || 0);
+      const baseV = v.length;
+      for (let i = 0; i < posAcc.count; i++) {
+        const off = posOff + i * 12;
+        if (off + 12 <= binBytes.byteLength) {
+          v.push([dv.getFloat32(off, true), dv.getFloat32(off + 4, true), dv.getFloat32(off + 8, true)]);
+        }
+      }
+      if (prim.indices !== undefined) {
+        const idxAcc = gltf.accessors[prim.indices];
+        const idxBv = gltf.bufferViews[idxAcc.bufferView];
+        const idxOff = (idxBv.byteOffset || 0) + (idxAcc.byteOffset || 0);
+        for (let k = 0; k + 2 < idxAcc.count; k += 3) {
+          if (idxAcc.componentType === 5125) {
+            f.push([baseV + dv.getUint32(idxOff + k*4, true), baseV + dv.getUint32(idxOff + (k+1)*4, true), baseV + dv.getUint32(idxOff + (k+2)*4, true)]);
+          } else {
+            f.push([baseV + dv.getUint16(idxOff + k*2, true), baseV + dv.getUint16(idxOff + (k+1)*2, true), baseV + dv.getUint16(idxOff + (k+2)*2, true)]);
+          }
+        }
+      } else {
+        for (let k = 0; k + 2 < posAcc.count; k += 3) {
+          f.push([baseV + k, baseV + k + 1, baseV + k + 2]);
+        }
+      }
+    });
+  });
+  return { v, f };
+}
+
+function handleFileImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const lower = file.name.toLowerCase();
+
+  if (file.type.startsWith('image/') || /\.(png|jpg|jpeg|webp|bmp)$/i.test(lower)) {
+    handlePhotoTo3DImport(e);
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    pushUndo();
+    let v = [], f = [];
+    const buf = reader.result;
+    const bytes = new Uint8Array(buf);
+    const dv = new DataView(buf);
+
+    if (lower.endsWith('.glb') || (dv.byteLength > 20 && dv.getUint32(0, true) === 0x46546C67)) {
+      const jsonLen = dv.getUint32(12, true);
+      const jsonStr = new TextDecoder().decode(bytes.subarray(20, 20 + jsonLen));
+      const gltf = JSON.parse(jsonStr);
+      const binStart = 20 + jsonLen + 8;
+      const binBytes = bytes.subarray(binStart);
+      const parsed = parseGltfBufferToMesh(gltf, binBytes);
+      v = parsed.v; f = parsed.f;
+    } else if (lower.endsWith('.gltf')) {
+      const gltf = JSON.parse(new TextDecoder().decode(bytes));
+      const uri = gltf.buffers?.[0]?.uri || '';
+      if (uri.includes('base64,')) {
+        const b64 = atob(uri.split('base64,')[1]);
+        const bin = new Uint8Array(b64.length);
+        for (let i = 0; i < b64.length; i++) bin[i] = b64.charCodeAt(i);
+        const parsed = parseGltfBufferToMesh(gltf, bin);
+        v = parsed.v; f = parsed.f;
+      }
+    } else if (lower.endsWith('.ply')) {
+      const lines = new TextDecoder().decode(bytes).split(/\r?\n/);
+      let vCount = 0, fCount = 0, headerEnd = -1;
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i].trim();
+        if (l.startsWith('element vertex')) vCount = parseInt(l.split(/\s+/)[2], 10) || 0;
+        else if (l.startsWith('element face')) fCount = parseInt(l.split(/\s+/)[2], 10) || 0;
+        else if (l === 'end_header') { headerEnd = i; break; }
+      }
+      if (headerEnd >= 0) {
+        let cur = headerEnd + 1;
+        while (cur < lines.length && v.length < vCount) {
+          const p = lines[cur++].trim().split(/\s+/);
+          if (p.length >= 3) v.push([parseFloat(p[0]), parseFloat(p[1]), parseFloat(p[2])]);
+        }
+        while (cur < lines.length && f.length < fCount) {
+          const p = lines[cur++].trim().split(/\s+/);
+          if (p.length >= 4) {
+            const n = parseInt(p[0], 10) || 3;
+            const idx = p.slice(1, 1 + n).map(x => parseInt(x, 10));
+            for (let i = 1; i < idx.length - 1; i++) f.push([idx[0], idx[i], idx[i+1]]);
+          }
+        }
+      }
+    } else if (lower.endsWith('.obj')) {
+      const lines = new TextDecoder().decode(bytes).split(/\r?\n/);
+      lines.forEach(line => {
+        const p = line.trim().split(/\s+/);
+        if (p[0] === 'v' && p.length >= 4) v.push([parseFloat(p[1]), parseFloat(p[2]), parseFloat(p[3])]);
+        else if (p[0] === 'f' && p.length >= 4) {
+          const idx = p.slice(1).map(tok => {
+            const raw = parseInt(tok.split('/')[0], 10);
+            return raw > 0 ? raw - 1 : v.length + raw;
+          });
+          for (let i = 1; i < idx.length - 1; i++) f.push([idx[0], idx[i], idx[i+1]]);
+        }
+      });
+    } else {
+      const headStr = new TextDecoder().decode(bytes.subarray(0, Math.min(256, bytes.length)));
+      if (headStr.trim().startsWith('solid') && headStr.includes('facet')) {
+        const lines = new TextDecoder().decode(bytes).split(/\r?\n/);
+        let tri = [];
+        lines.forEach(line => {
+          const p = line.trim().split(/\s+/);
+          if (p[0] === 'vertex' && p.length >= 4) {
+            tri.push([parseFloat(p[1]), parseFloat(p[2]), parseFloat(p[3])]);
+            if (tri.length === 3) {
+              const i0 = v.length;
+              v.push(tri[0], tri[1], tri[2]);
+              f.push([i0, i0+1, i0+2]);
+              tri = [];
+            }
+          }
+        });
+      } else if (dv.byteLength > 84) {
+        const tris = dv.getUint32(80, true);
+        let pos = 84;
+        for (let t = 0; t < tris && pos + 50 <= dv.byteLength; t++) {
+          pos += 12;
+          const i0 = v.length;
+          for (let k = 0; k < 3; k++) {
+            v.push([dv.getFloat32(pos, true), dv.getFloat32(pos+4, true), dv.getFloat32(pos+8, true)]);
+            pos += 12;
+          }
+          f.push([i0, i0+1, i0+2]);
+          pos += 2;
+        }
+      }
+    }
+
+    if (v.length > 0 && f.length > 0) {
+      const node = buildPrimitiveData('CUBE');
+      node.name = file.name.replace(/\.[^.]+$/, '');
+      node.nameFa = 'مدل واردشده (' + file.name + ')';
+      node.verts = normalizeMeshVerts(v);
+      node.faces = f;
+      const append = document.getElementById('chkModalAppend')?.checked || document.getElementById('chkAppendMode')?.checked;
+      if (append && nodes.length > 0) {
+        node.pos = [1.4, 0, 0];
+        nodes.push(node);
+      } else {
+        nodes = [node];
+      }
+      selectedId = node.id;
+      syncUiFromSelected();
+      updateEngineeringStatsUI();
+      selectTab('VIEWPORT');
+      showToast(`فایل سه‌بعدی «${file.name}» با موفقیت وارد شد (${f.length} مثلث)`);
+    } else {
+      showToast('فرمت فایل قابل استخراج نبود (فرمت‌های مجاز: GLB, STL, OBJ, PLY, عکس)');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+}
+
+const STORAGE_KEY = 'polyforge_saved_projects_v2';
+function getSavedProjects() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+}
+function saveProjectOffline() {
+  const list = getSavedProjects();
+  const title = getProjectBaseName();
+  list.unshift({
+    id: uid(), title,
+    date: new Date().toLocaleDateString('fa-IR'),
+    sceneJson: JSON.stringify(nodes)
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, 15)));
+  renderSavedProjectsList();
+  showToast(`پروژه «${title}» در حافظه آفلاین ذخیره شد`);
+}
+function loadSavedProject(id) {
+  const item = getSavedProjects().find(p => p.id === id);
+  if (!item) return;
+  pushUndo();
+  nodes = JSON.parse(item.sceneJson);
+  selectedId = nodes[0]?.id || null;
+  selectTab('VIEWPORT');
+  showToast(`پروژه «${item.title}» بارگذاری شد`);
+}
+function renderSavedProjectsList() {
+  const cont = document.getElementById('savedProjectsList');
+  const list = getSavedProjects();
+  if (!list.length) {
+    cont.innerHTML = '<div class="section-sub">هنوز پروژه‌ای ذخیره نشده است. با دکمه بالا پروژه خود را آفلاین ذخیره کنید.</div>';
+    return;
+  }
+  cont.innerHTML = list.map(p => `
+    <div class="preset-card" style="flex-direction:row;justify-content:space-between;align-items:center;" onclick="loadSavedProject('${p.id}')">
+      <div>
+        <div class="preset-card-title">${p.title}</div>
+        <div class="preset-card-desc">ذخیره آفلاین • ${p.date}</div>
+      </div>
+      <span style="font-size:11px;color:var(--cyan);">بارگذاری ⬅</span>
+    </div>
+  `).join('');
+}
+
+spawnPrimitive('CUBE', false);
+hideToast();
+resizeCanvas();
+requestAnimationFrame(renderLoop);
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

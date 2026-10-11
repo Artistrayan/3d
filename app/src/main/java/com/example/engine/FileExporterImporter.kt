@@ -116,6 +116,32 @@ object FileExporterImporter {
                     nodeCount = visibleNodes.size
                 )
             }
+            ExportFormat3D.HTML_WEB3D -> {
+                val htmlText = Web3DGenerator.generateStandaloneWeb3DHtml(visibleNodes, safeBase)
+                val bytes = htmlText.toByteArray(Charsets.UTF_8)
+                ExportPayload(
+                    format = format,
+                    fileName = fileName,
+                    bytes = bytes,
+                    headerPreview = "Standalone HTML5 Web 3D Studio & Viewer (${bytes.size / 1024} KB)\nIncludes: Embedded 3D Scene JSON + Interactive Touch/Mouse 3D Engine + In-Browser .GLB/.STL/.OBJ Exporters\n\n" + htmlText.take(650),
+                    vertexCount = totalVerts,
+                    triangleCount = totalTris,
+                    nodeCount = visibleNodes.size
+                )
+            }
+            ExportFormat3D.GLTF_WEB -> {
+                val gltfJson = Web3DGenerator.exportToWebGltfEmbedded(visibleNodes) { exportToGlb(it) }
+                val bytes = gltfJson.toByteArray(Charsets.UTF_8)
+                ExportPayload(
+                    format = format,
+                    fileName = fileName,
+                    bytes = bytes,
+                    headerPreview = "Web glTF 2.0 Embedded JSON (.gltf) with data:application/octet-stream;base64 URI\n\n" + gltfJson.take(700),
+                    vertexCount = totalVerts,
+                    triangleCount = totalTris,
+                    nodeCount = visibleNodes.size
+                )
+            }
         }
     }
 
@@ -597,15 +623,129 @@ object FileExporterImporter {
             lower.endsWith(".obj") -> parseObj(fileName, bytes.toString(Charsets.UTF_8))
             lower.endsWith(".ply") -> parsePly(fileName, bytes.toString(Charsets.UTF_8))
             lower.endsWith(".stl") -> parseStl(fileName, bytes)
+            lower.endsWith(".glb") -> parseGlb(fileName, bytes)
+            lower.endsWith(".gltf") -> parseGltfJson(fileName, bytes.toString(Charsets.UTF_8), null)
             else -> {
+                if (bytes.size >= 12) {
+                    val magic = ByteBuffer.wrap(bytes, 0, 4).order(ByteOrder.LITTLE_ENDIAN).int
+                    if (magic == 0x46546C67) {
+                        return parseGlb(fileName, bytes)
+                    }
+                }
                 val head = bytes.take(64).toByteArray().toString(Charsets.UTF_8)
                 when {
                     head.trimStart().startsWith("ply") -> parsePly(fileName, bytes.toString(Charsets.UTF_8))
+                    head.trimStart().startsWith("{") -> parseGltfJson(fileName, bytes.toString(Charsets.UTF_8), null)
                     head.contains("v ") && head.contains("f ") -> parseObj(fileName, bytes.toString(Charsets.UTF_8))
                     else -> parseStl(fileName, bytes)
                 }
             }
         }
+    }
+
+    private fun parseGlb(fileName: String, bytes: ByteArray): List<SceneNode3D> {
+        return runCatching {
+            if (bytes.size < 20) return emptyList()
+            val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+            val magic = buf.int
+            if (magic != 0x46546C67) return emptyList()
+            buf.int // version
+            buf.int // totalLength
+            val jsonLen = buf.int
+            val jsonType = buf.int
+            if (jsonType != 0x4E4F534A || bytes.size < 20 + jsonLen) return emptyList()
+            val jsonStr = String(bytes, 20, jsonLen, Charsets.UTF_8)
+            var binBytes: ByteArray? = null
+            val binHeaderStart = 20 + jsonLen
+            if (bytes.size >= binHeaderStart + 8) {
+                buf.position(binHeaderStart)
+                val binLen = buf.int
+                val binType = buf.int
+                if (binType == 0x004E4942 && bytes.size >= binHeaderStart + 8 + binLen) {
+                    binBytes = bytes.copyOfRange(binHeaderStart + 8, binHeaderStart + 8 + binLen)
+                }
+            }
+            parseGltfJson(fileName, jsonStr, binBytes)
+        }.getOrDefault(emptyList())
+    }
+
+    private fun parseGltfJson(fileName: String, jsonStr: String, externalBin: ByteArray?): List<SceneNode3D> {
+        return runCatching {
+            val root = JSONObject(jsonStr)
+            val buffers = root.optJSONArray("buffers")
+            val binData: ByteArray = externalBin ?: run {
+                val uri = buffers?.optJSONObject(0)?.optString("uri", "") ?: ""
+                if (uri.contains("base64,")) {
+                    java.util.Base64.getDecoder().decode(uri.substringAfter("base64,"))
+                } else return emptyList()
+            }
+            val bufferViews = root.optJSONArray("bufferViews") ?: return emptyList()
+            val accessors = root.optJSONArray("accessors") ?: return emptyList()
+            val meshes = root.optJSONArray("meshes") ?: return emptyList()
+
+            val verts = mutableListOf<Vec3>()
+            val faces = mutableListOf<TriangleFace>()
+
+            for (m in 0 until meshes.length()) {
+                val prims = meshes.getJSONObject(m).optJSONArray("primitives") ?: continue
+                for (p in 0 until prims.length()) {
+                    val prim = prims.getJSONObject(p)
+                    val attrs = prim.optJSONObject("attributes") ?: continue
+                    val posAccIdx = attrs.optInt("POSITION", -1)
+                    if (posAccIdx < 0 || posAccIdx >= accessors.length()) continue
+
+                    val posAcc = accessors.getJSONObject(posAccIdx)
+                    val posBvIdx = posAcc.optInt("bufferView", 0)
+                    val posCount = posAcc.optInt("count", 0)
+                    val posBv = bufferViews.getJSONObject(posBvIdx)
+                    val posOffset = posBv.optInt("byteOffset", 0) + posAcc.optInt("byteOffset", 0)
+
+                    val baseVertex = verts.size
+                    val bb = ByteBuffer.wrap(binData).order(ByteOrder.LITTLE_ENDIAN)
+                    for (i in 0 until posCount) {
+                        val off = posOffset + i * 12
+                        if (off + 12 <= binData.size) {
+                            verts.add(Vec3(bb.getFloat(off), bb.getFloat(off + 4), bb.getFloat(off + 8)))
+                        }
+                    }
+
+                    val idxAccIdx = prim.optInt("indices", -1)
+                    if (idxAccIdx in 0 until accessors.length()) {
+                        val idxAcc = accessors.getJSONObject(idxAccIdx)
+                        val idxBv = bufferViews.getJSONObject(idxAcc.optInt("bufferView", 0))
+                        val idxOffset = idxBv.optInt("byteOffset", 0) + idxAcc.optInt("byteOffset", 0)
+                        val idxCount = idxAcc.optInt("count", 0)
+                        val compType = idxAcc.optInt("componentType", 5123)
+                        var k = 0
+                        while (k + 2 < idxCount) {
+                            val i0: Int
+                            val i1: Int
+                            val i2: Int
+                            if (compType == 5125) {
+                                i0 = bb.getInt(idxOffset + k * 4)
+                                i1 = bb.getInt(idxOffset + (k + 1) * 4)
+                                i2 = bb.getInt(idxOffset + (k + 2) * 4)
+                            } else {
+                                i0 = bb.getShort(idxOffset + k * 2).toInt() and 0xFFFF
+                                i1 = bb.getShort(idxOffset + (k + 1) * 2).toInt() and 0xFFFF
+                                i2 = bb.getShort(idxOffset + (k + 2) * 2).toInt() and 0xFFFF
+                            }
+                            faces.add(TriangleFace(baseVertex + i0, baseVertex + i1, baseVertex + i2))
+                            k += 3
+                        }
+                    } else {
+                        var k = 0
+                        while (k + 2 < posCount) {
+                            faces.add(TriangleFace(baseVertex + k, baseVertex + k + 1, baseVertex + k + 2))
+                            k += 3
+                        }
+                    }
+                }
+            }
+            if (verts.isNotEmpty() && faces.isNotEmpty()) {
+                listOf(normalizeImportedMesh(fileName.substringBeforeLast('.'), verts, faces))
+            } else emptyList()
+        }.getOrDefault(emptyList())
     }
 
     private fun parseObj(fileName: String, content: String): List<SceneNode3D> {

@@ -85,6 +85,9 @@ fun LibraryPanel(
     isPersian: Boolean,
     onAddPrimitive: (PrimitiveType3D) -> Unit,
     onLoadPreset: (ReadyModelPreset, Boolean) -> Unit,
+    onImport3DFile: () -> Unit = {},
+    onImportPhotoTo3D: () -> Unit = {},
+    onImportPhotoTexture: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val presets = remember { PrimitiveGenerator.getReadyModelPresets() }
@@ -97,6 +100,93 @@ fun LibraryPanel(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Quick Import 3D File & Photo-to-3D Card
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = StudioSurfaceElevated),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.5.dp, CyberCyan.copy(alpha = 0.65f), RoundedCornerShape(18.dp))
+                    .testTag("library_import_card")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = if (isPersian)
+                            "وارد کردن فایل سه‌بعدی و عکس از گوشی (Import File & Photo)"
+                        else
+                            "Import 3D Files & Convert Photos to 3D",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = CyberCyan,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (isPersian)
+                            "فایل‌های سه‌بعدی (GLB, STL, OBJ, PLY) را وارد کنید یا عکس‌های گالری را به مدل سه‌بعدی برجسته و تکسچر تبدیل نمایید:"
+                        else
+                            "Import GLB/STL/OBJ/PLY files or turn any gallery photo into a 3D relief mesh or surface texture:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onImport3DFile,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CyberCyan,
+                                contentColor = Color(0xFF00242B)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("lib_import_3d_file_btn")
+                        ) {
+                            Text(
+                                text = if (isPersian) "📂 وارد کردن فایل 3D" else "Import 3D File",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Button(
+                            onClick = onImportPhotoTo3D,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = SculptAmber,
+                                contentColor = Color(0xFF241100)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("lib_photo_to_3d_btn")
+                        ) {
+                            Text(
+                                text = if (isPersian) "🏔️ تبدیل عکس به 3D" else "Photo to 3D",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = onImportPhotoTexture,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("lib_photo_texture_btn")
+                    ) {
+                        Text(
+                            text = if (isPersian) "🖼️ انتخاب عکس از گالری به عنوان تکسچر روی مدل" else "Apply Gallery Photo as 3D Texture",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = ManifoldEmerald,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
         // Studio Hero Card
         item {
             Card(

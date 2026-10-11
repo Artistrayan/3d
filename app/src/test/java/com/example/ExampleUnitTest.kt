@@ -45,4 +45,14 @@ class ExampleUnitTest {
         assertTrue(stats.widthMm > 0f)
         assertTrue(stats.volumeCm3 > 0f)
     }
+
+    @Test
+    fun webHtml3DExport_containsStandaloneCanvasAndExporters() {
+        val cube = PrimitiveGenerator.createPrimitive(PrimitiveType3D.CUBE)
+        val htmlPayload = FileExporterImporter.generateExport(listOf(cube), ExportFormat3D.HTML_WEB3D, "web_cube")
+        val htmlText = htmlPayload.bytes.toString(Charsets.UTF_8)
+        assertTrue(htmlText.contains("<!DOCTYPE html>"))
+        assertTrue(htmlText.contains("downloadGLB()"))
+        assertTrue(htmlText.contains("downloadSTL()"))
+    }
 }
