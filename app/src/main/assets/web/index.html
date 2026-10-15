@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0B101E" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<link rel="manifest" href="./manifest.json" />
+<link rel="manifest" href="./web/manifest.json" />
 <title>PolyForge 3D Studio — استودیو کامل مدل‌سازی سه‌بعدی</title>
 <style>
   :root {
@@ -27,12 +27,15 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
   html, body {
-    width: 100vw; height: 100vh; height: 100dvh; overflow: hidden;
+    position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+    width: 100%; height: 100%; overflow: hidden;
     background: var(--bg);
     font-family: system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
     color: var(--text);
     display: flex; flex-direction: column;
   }
+
+  /* 1. Top Header Bar */
   .top-header {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
@@ -53,6 +56,7 @@
     scrollbar-width: none;
   }
   .header-actions::-webkit-scrollbar { display: none; }
+
   button, .chip-btn {
     background: var(--surface-elevated); color: var(--text);
     border: 1px solid var(--border); border-radius: 8px;
@@ -68,29 +72,40 @@
   button.btn-amber { background: rgba(255,145,0,0.18); color: var(--amber); border-color: var(--amber); font-weight: 700; }
   button.btn-emerald { background: rgba(16,185,129,0.18); color: var(--emerald); border-color: var(--emerald); font-weight: 700; }
   button.btn-red { background: rgba(239,68,68,0.18); color: #FCA5A5; border-color: var(--red); }
+
+  /* Toast Banner */
   #toastBanner {
     background: #083344; color: var(--cyan); border-bottom: 1px solid rgba(0,229,255,0.4);
     padding: 5px 12px; font-size: 11px; display: none; align-items: center; justify-content: space-between;
     flex-shrink: 0; z-index: 19;
   }
+
+  /* 2. Middle Workspace Area */
   .workspace-area {
     flex: 1; min-height: 0; width: 100%; position: relative;
     display: flex; flex-direction: column; overflow: hidden;
   }
+
+  /* 3D Canvas Container */
   #canvasContainer {
     flex: 1; min-height: 150px; width: 100%; position: relative; overflow: hidden;
     background: radial-gradient(circle at 50% 45%, #17223B 0%, #0B101E 70%, #070A14 100%);
   }
   #viewport {
+    position: absolute; top: 0; left: 0;
     width: 100%; height: 100%; display: block; touch-action: none; cursor: grab;
   }
   #viewport:active { cursor: grabbing; }
+
+  /* Top Camera & View Chips Strip inside Canvas */
   .canvas-top-strip {
     position: absolute; top: 6px; left: 8px; right: 8px; z-index: 10;
     display: flex; gap: 5px; overflow-x: auto; padding-bottom: 2px;
     scrollbar-width: none;
   }
   .canvas-top-strip::-webkit-scrollbar { display: none; }
+
+  /* Bottom Unified Dock inside Canvas (shown on Studio tab) */
   .canvas-bottom-dock {
     position: absolute; bottom: 6px; left: 8px; right: 8px; z-index: 10;
     background: var(--surface-alpha); backdrop-filter: blur(12px);
@@ -109,6 +124,8 @@
     scrollbar-width: none;
   }
   .scroll-strip::-webkit-scrollbar { display: none; }
+
+  /* Precision X/Y/Z Drawer */
   #xyzDrawer {
     border-top: 1px solid var(--border); padding-top: 6px;
     display: none; flex-direction: column; gap: 6px;
@@ -120,6 +137,8 @@
   }
   .xyz-item label { font-size: 10px; font-weight: 700; display: flex; justify-content: space-between; }
   .xyz-item input[type=range] { width: 100%; height: 18px; accent-color: var(--cyan); }
+
+  /* Secondary Tab Panel (Split View below 3D Preview) */
   #tabPanelSheet {
     height: 62%; background: var(--surface);
     border-top: 2px solid rgba(0,229,255,0.45);
@@ -137,6 +156,8 @@
     flex: 1; overflow-y: auto; padding: 10px 12px 18px;
     display: flex; flex-direction: column; gap: 12px;
   }
+
+  /* Cards & Grids inside Secondary Panels */
   .section-card {
     background: var(--surface-elevated); border: 1px solid var(--border);
     border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
@@ -153,6 +174,8 @@
   .preset-card:active, .preset-card:hover { border-color: var(--cyan); background: rgba(0,229,255,0.1); }
   .preset-card-title { font-size: 12px; font-weight: 700; color: var(--cyan); }
   .preset-card-desc { font-size: 10px; color: var(--muted); }
+
+  /* Stats Grid */
   .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; direction: ltr; }
   .stat-box {
     background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
@@ -160,7 +183,11 @@
   }
   .stat-val { font-size: 12px; font-weight: 800; color: var(--cyan); font-family: monospace; }
   .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
-  .paint-wrap { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* 2D Texture Paint Canvas */
+  .paint-wrap {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
   #texPaintCanvas {
     width: 140px; height: 140px; border-radius: 10px;
     border: 2px solid var(--cyan); touch-action: none; cursor: crosshair; background: #111827;
@@ -170,10 +197,13 @@
     width: 24px; height: 24px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.65); cursor: pointer;
   }
   .color-swatch.active { transform: scale(1.18); border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
   .slider-row {
     display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px;
   }
   .slider-row input[type=range] { flex: 1; accent-color: var(--cyan); }
+
+  /* 3. Bottom 5-Tab Navigation Bar */
   .bottom-nav {
     height: 60px; background: var(--surface);
     border-top: 1px solid var(--border);
@@ -193,6 +223,7 @@
   .nav-item .nav-label { font-size: 10px; font-weight: 700; }
   .nav-item.active { color: var(--cyan); }
   .nav-item.active .nav-icon { background: var(--cyan); color: #00242B; font-weight: 900; }
+
   .hidden { display: none !important; }
   #exitFullBtn {
     position: fixed; top: 10px; right: 10px; z-index: 50;
@@ -204,7 +235,7 @@
     border-radius: 8px; padding: 6px 10px; font-size: 12px; width: 100%; font-family: inherit;
   }
   .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(7, 10, 20, 0.82);
+    position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; background: rgba(7, 10, 20, 0.82);
     backdrop-filter: blur(8px); z-index: 60; display: none;
     align-items: center; justify-content: center; padding: 14px;
   }
@@ -217,7 +248,7 @@
   .import-opt-btn {
     display: flex; align-items: center; justify-content: space-between;
     text-align: right; padding: 11px 12px; border-radius: 12px;
-    background: var(--surface-elev); border: 1px solid var(--border);
+    background: var(--surface-elevated); border: 1px solid var(--border);
     width: 100%; gap: 10px;
   }
 </style>
@@ -226,10 +257,12 @@
 
 <button id="exitFullBtn" class="hidden" onclick="setFullScreen(false)">نمایش منوها و نوار ابزار (Show UI)</button>
 
+<!-- Global Hidden File & Photo Inputs -->
 <input type="file" id="fileImportInput" accept=".stl,.obj,.glb,.gltf,.ply,.json,image/*,*/*" style="display:none" onchange="handleFileImport(event)" />
 <input type="file" id="photoTo3DInput" accept="image/*" style="display:none" onchange="handlePhotoTo3DImport(event)" />
 <input type="file" id="photoTexInput" accept="image/*" style="display:none" onchange="handlePhotoTextureImport(event)" />
 
+<!-- Quick Import File & Photo Modal -->
 <div id="importModal" class="modal-backdrop" onclick="if(event.target===this)closeImportModal()">
   <div class="modal-card">
     <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -270,6 +303,7 @@
   </div>
 </div>
 
+<!-- 1. TOP HEADER BAR -->
 <header id="topHeader" class="top-header">
   <div class="brand">
     <div class="brand-badge">3D</div>
@@ -279,11 +313,13 @@
     </div>
   </div>
   <div class="header-actions">
+    <button class="btn-cyan" onclick="openImportModal()">📂 وارد کردن فایل/عکس</button>
+    <button onclick="selectTab('LIBRARY')" style="border-color:var(--cyan);color:var(--cyan);">🧊 افزودن مدل</button>
+    <button class="btn-amber" onclick="selectTab('MATERIAL')">🎨 متریال</button>
+    <button onclick="selectTab('SCULPT')" style="border-color:var(--purple);color:#D8B4FE;">🛠️ ابزارها</button>
+    <button class="btn-emerald" onclick="selectTab('EXPORT')">📦 خروجی</button>
     <button onclick="undoAction()" title="بازگشت (Undo)">↶</button>
     <button onclick="redoAction()" title="انجام مجدد (Redo)">↷</button>
-    <button class="btn-cyan" onclick="openImportModal()">📂 وارد کردن فایل/عکس</button>
-    <button class="btn-amber" onclick="selectTab('MATERIAL')">تکسچر</button>
-    <button class="btn-emerald" onclick="selectTab('EXPORT')">خروجی GLB/STL</button>
     <button onclick="setFullScreen(true)">تمام‌صفحه</button>
   </div>
 </header>
@@ -293,10 +329,13 @@
   <button onclick="hideToast()" style="padding:2px 6px;font-size:10px;">✕</button>
 </div>
 
+<!-- 2. MAIN WORKSPACE AREA -->
 <main class="workspace-area">
+  <!-- 3D Viewport Canvas -->
   <div id="canvasContainer">
     <canvas id="viewport"></canvas>
 
+    <!-- Top Camera & View Presets Strip -->
     <div id="canvasTopStrip" class="canvas-top-strip">
       <button class="btn-cyan" onclick="openImportModal()">📂 فایل / 🖼️ عکس</button>
       <button id="btnOrtho" onclick="toggleOrtho()">PERSP</button>
@@ -311,6 +350,7 @@
       <button class="btn-red" onclick="clearScene()">خلوت کردن</button>
     </div>
 
+    <!-- Bottom Unified Control Dock (Visible when on VIEWPORT tab) -->
     <div id="canvasBottomDock" class="canvas-bottom-dock">
       <div class="dock-row">
         <div class="tool-group">
@@ -320,19 +360,26 @@
           <button id="toolScale" class="tool-icon-btn" onclick="setTool('SCALE')" title="مقیاس">⤢</button>
         </div>
 
-        <div id="quickShapesStrip" class="scroll-strip">
-          <button onclick="spawnPrimitive('CUBE', false)">مکعب</button>
-          <button onclick="spawnPrimitive('SPHERE', false)">کره</button>
-          <button onclick="spawnPrimitive('CYLINDER', false)">استوانه</button>
-          <button onclick="spawnPrimitive('GEAR', false)">چرخ‌دنده</button>
-          <button onclick="spawnPrimitive('VASE', false)">گلدان</button>
-          <button onclick="spawnPrimitive('GEM', false)">الماس</button>
-          <button onclick="spawnPrimitive('TORUS', false)">حلقه</button>
+        <div style="display:flex;gap:5px;align-items:center;">
+          <button class="btn-cyan" onclick="openImportModal()" style="padding:5px 8px;">📂 فایل/عکس</button>
+          <button id="btnToggleXyz" onclick="toggleXyzDrawer()" style="border-color:var(--cyan);color:var(--cyan);">ابعاد X/Y/Z</button>
         </div>
-
-        <button id="btnToggleXyz" onclick="toggleXyzDrawer()" style="border-color:var(--cyan);color:var(--cyan);">ابعاد X/Y/Z</button>
       </div>
 
+      <div id="quickShapesStrip" class="scroll-strip">
+        <button onclick="spawnPrimitive('CUBE', false)">مکعب</button>
+        <button onclick="spawnPrimitive('SPHERE', false)">کره</button>
+        <button onclick="spawnPrimitive('CYLINDER', false)">استوانه</button>
+        <button onclick="spawnPrimitive('GEAR', false)">چرخ‌دنده</button>
+        <button onclick="spawnPrimitive('VASE', false)">گلدان</button>
+        <button onclick="spawnPrimitive('GEM', false)">الماس</button>
+        <button onclick="spawnPrimitive('TORUS', false)">حلقه</button>
+        <button onclick="spawnPrimitive('CONE', false)">مخروط</button>
+        <button onclick="spawnPrimitive('CAPSULE', false)">کپسول</button>
+        <button onclick="spawnPrimitive('STAR', false)">ستاره</button>
+      </div>
+
+      <!-- Expandable Precision X/Y/Z Sliders Drawer -->
       <div id="xyzDrawer">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span id="selNodeTitle" style="font-size:11px;font-weight:700;color:#fff;">مکعب مهندسی</span>
@@ -360,6 +407,7 @@
     </div>
   </div>
 
+  <!-- Secondary Tab Sheet (Library / Sculpt / Material / Export) -->
   <section id="tabPanelSheet">
     <div class="sheet-header">
       <span id="sheetTitleText" class="sheet-title">مدل‌ها و کتابخانه</span>
@@ -370,6 +418,7 @@
     </div>
 
     <div class="sheet-body">
+      <!-- TAB 2: LIBRARY (مدل‌های پایه و آماده) -->
       <div id="panelLibrary" class="tab-content">
         <div class="section-card" style="border-color:var(--cyan);">
           <div class="section-title">
@@ -438,6 +487,7 @@
         </div>
       </div>
 
+      <!-- TAB 3: SCULPT & MESH MODIFIERS (ابزار مش و حجاری) -->
       <div id="panelSculpt" class="tab-content hidden">
         <div class="section-card">
           <div class="section-title">
@@ -470,6 +520,7 @@
         </div>
       </div>
 
+      <!-- TAB 4: MATERIAL, TEXTURE & LIGHTING (تکسچر، نقاشی و نورپردازی) -->
       <div id="panelMaterial" class="tab-content hidden">
         <div class="section-card">
           <div class="section-title">
@@ -554,6 +605,7 @@
         </div>
       </div>
 
+      <!-- TAB 5: EXPORT & PROJECTS (خروجی‌ها، وارد کردن فایل و پروژه‌ها) -->
       <div id="panelExport" class="tab-content hidden">
         <div class="section-card">
           <div class="section-title">نام پروژه و خروجی استاندارد سه‌بعدی</div>
@@ -590,6 +642,7 @@
   </section>
 </main>
 
+<!-- 3. BOTTOM 5-TAB NAVIGATION BAR -->
 <nav id="bottomNav" class="bottom-nav">
   <button id="navVIEWPORT" class="nav-item active" onclick="selectTab('VIEWPORT')">
     <div class="nav-icon">🧊</div>
@@ -614,6 +667,7 @@
 </nav>
 
 <script>
+// ==================== SCENE STATE & ENGINE ====================
 let nodes = [];
 let selectedId = null;
 let undoStack = [], redoStack = [];
@@ -623,10 +677,13 @@ let toolMode = 'ORBIT';
 let isOrtho = false, showWire = false, showVerts = false, showDims = false, autoSpin = false;
 let shadingMode = 'PBR', lightingMode = 'CYBER';
 let camYaw = -0.58, camPitch = 0.40, camDist = 4.6, panX = 0, panY = 0;
+
+// Paint strokes for 2D/3D live texture painting
 let paintStrokes = [];
 let brushColor = '#00E5FF';
 
 function uid() { return 'n_' + Math.random().toString(36).slice(2, 9); }
+
 function pushUndo() {
   undoStack.push(JSON.stringify(nodes));
   if (undoStack.length > 20) undoStack.shift();
@@ -648,6 +705,7 @@ function redoAction() {
   syncUiFromSelected();
   showToast('انجام مجدد (Redo)');
 }
+
 function showToast(msg) {
   const b = document.getElementById('toastBanner');
   document.getElementById('toastText').textContent = msg;
@@ -657,6 +715,7 @@ function showToast(msg) {
 }
 function hideToast() { document.getElementById('toastBanner').style.display = 'none'; }
 
+// ==================== NAVIGATION & UI TABS ====================
 function selectTab(tab) {
   activeTab = tab;
   ['VIEWPORT','LIBRARY','SCULPT','MATERIAL','EXPORT'].forEach(t => {
@@ -677,6 +736,7 @@ function selectTab(tab) {
     dock.style.display = 'none';
     topStrip.style.display = 'none';
     canvasCont.style.display = sheetMaximized ? 'none' : 'block';
+
     const titles = {
       LIBRARY: 'کتابخانه اشکال پایه و مدل‌های آماده',
       SCULPT: 'ابزارهای مش، حجاری و آمار مهندسی',
@@ -728,13 +788,17 @@ function toggleXyzDrawer() {
   syncUiFromSelected();
 }
 
-function getSelectedNode() { return nodes.find(n => n.id === selectedId) || nodes[0] || null; }
+function getSelectedNode() {
+  return nodes.find(n => n.id === selectedId) || nodes[0] || null;
+}
 
 function syncUiFromSelected() {
   const n = getSelectedNode();
   if (!n) return;
   document.getElementById('selNodeTitle').textContent = `${n.nameFa} (${n.faces.length} مثلث)`;
-  const sx = document.getElementById('sliderX'), sy = document.getElementById('sliderY'), sz = document.getElementById('sliderZ');
+  const sx = document.getElementById('sliderX');
+  const sy = document.getElementById('sliderY');
+  const sz = document.getElementById('sliderZ');
   if (toolMode === 'ROTATE') {
     sx.min = -180; sx.max = 180; sx.step = 2; sx.value = n.rot[0];
     sy.min = -180; sy.max = 180; sy.step = 2; sy.value = n.rot[1];
@@ -742,7 +806,7 @@ function syncUiFromSelected() {
   } else if (toolMode === 'SCALE') {
     sx.min = 0.2; sx.max = 3.0; sx.step = 0.05; sx.value = n.scale[0];
     sy.min = 0.2; sy.max = 3.0; sy.step = 0.05; sy.value = n.scale[1];
-    sz.min = 0.2; sy.max = 3.0; sy.step = 0.05; sz.value = n.scale[2];
+    sz.min = 0.2; sz.max = 3.0; sz.step = 0.05; sz.value = n.scale[2];
   } else {
     sx.min = -3.0; sx.max = 3.0; sx.step = 0.05; sx.value = n.pos[0];
     sy.min = -3.0; sy.max = 3.0; sy.step = 0.05; sy.value = n.pos[1];
@@ -754,7 +818,8 @@ function syncUiFromSelected() {
 }
 
 function onXyzSlider() {
-  const n = getSelectedNode(); if (!n) return;
+  const n = getSelectedNode();
+  if (!n) return;
   const vx = parseFloat(document.getElementById('sliderX').value);
   const vy = parseFloat(document.getElementById('sliderY').value);
   const vz = parseFloat(document.getElementById('sliderZ').value);
@@ -766,6 +831,7 @@ function onXyzSlider() {
   document.getElementById('valZ').textContent = vz.toFixed(1);
 }
 
+// ==================== 12 PRIMITIVES GENERATOR ====================
 function buildPrimitiveData(kind) {
   const v = [], f = [];
   let nameFa = 'مکعب مهندسی';
@@ -902,6 +968,7 @@ function addPrimFromLib(kind) {
   selectTab('VIEWPORT');
 }
 
+// ==================== 6 READY-MADE MULTI-PART PRESETS ====================
 function loadReadyPreset(preset) {
   pushUndo();
   nodes = [];
@@ -947,11 +1014,14 @@ function clearScene() {
 }
 
 function duplicateSelected() {
-  const n = getSelectedNode(); if (!n) return;
+  const n = getSelectedNode();
+  if (!n) return;
   pushUndo();
   const copy = JSON.parse(JSON.stringify(n));
-  copy.id = uid(); copy.pos[0] += 0.65;
-  nodes.push(copy); selectedId = copy.id;
+  copy.id = uid();
+  copy.pos[0] += 0.65;
+  nodes.push(copy);
+  selectedId = copy.id;
   syncUiFromSelected();
   showToast('کپی از مدل ایجاد شد');
 }
@@ -965,8 +1035,10 @@ function deleteSelected() {
   showToast('قطعه انتخاب‌شده حذف شد');
 }
 
+// ==================== MESH MODIFIERS (SCULPT TAB) ====================
 function modSubdivide(smooth) {
-  const n = getSelectedNode(); if (!n) return;
+  const n = getSelectedNode();
+  if (!n) return;
   if (n.faces.length > 3200) { showToast('حداکثر جزئیات مش اعمال شده است'); return; }
   pushUndo();
   const nv = n.verts.map(p => p.slice()), nf = [], midCache = {};
@@ -978,11 +1050,12 @@ function modSubdivide(smooth) {
     if (smooth) {
       const l1 = Math.hypot(p1[0],p1[1],p1[2]), l2 = Math.hypot(p2[0],p2[1],p2[2]), lm = Math.hypot(mx,my,mz) || 1;
       const targetLen = (l1 + l2) * 0.5;
-      mx *= (0.85 + 0.15 * (targetLen / lm));
-      my *= (0.85 + 0.15 * (targetLen / lm));
-      mz *= (0.85 + 0.15 * (targetLen / lm));
+      mx = mx * (0.85 + 0.15 * (targetLen / lm));
+      my = my * (0.85 + 0.15 * (targetLen / lm));
+      mz = mz * (0.85 + 0.15 * (targetLen / lm));
     }
-    const idx = nv.length; nv.push([mx, my, mz]);
+    const idx = nv.length;
+    nv.push([mx, my, mz]);
     return (midCache[k] = idx);
   }
   n.faces.forEach(t => {
@@ -991,7 +1064,8 @@ function modSubdivide(smooth) {
     nf.push([a,ab,ca], [b,bc,ab], [c,ca,bc], [ab,bc,ca]);
   });
   n.verts = nv; n.faces = nf;
-  updateEngineeringStatsUI(); syncUiFromSelected();
+  updateEngineeringStatsUI();
+  syncUiFromSelected();
   showToast(`Subdivide انجام شد (${nf.length} مثلث)`);
 }
 
@@ -1002,7 +1076,8 @@ function modExtrude(amount) {
     const l = Math.hypot(p[0], p[1], p[2]) || 1;
     return [p[0] + (p[0]/l)*amount, p[1] + (p[1]/l)*amount, p[2] + (p[2]/l)*amount];
   });
-  updateEngineeringStatsUI(); showToast('Extrude روی سطوح اعمال شد');
+  updateEngineeringStatsUI();
+  showToast('Extrude روی سطوح اعمال شد');
 }
 
 function modSmooth() {
@@ -1019,7 +1094,8 @@ function modSmooth() {
     sx /= nb.length; sy /= nb.length; sz /= nb.length;
     return [p[0]*0.5 + sx*0.5, p[1]*0.5 + sy*0.5, p[2]*0.5 + sz*0.5];
   });
-  updateEngineeringStatsUI(); showToast('نرم‌سازی Laplacian Smooth انجام شد');
+  updateEngineeringStatsUI();
+  showToast('نرم‌سازی Laplacian Smooth انجام شد');
 }
 
 function modTwist(anglePerUnit) {
@@ -1029,7 +1105,8 @@ function modTwist(anglePerUnit) {
     const a = p[1] * anglePerUnit, c = Math.cos(a), s = Math.sin(a);
     return [p[0]*c - p[2]*s, p[1], p[0]*s + p[2]*c];
   });
-  updateEngineeringStatsUI(); showToast('پیچش حول محور Y اعمال شد');
+  updateEngineeringStatsUI();
+  showToast('پیچش حول محور Y اعمال شد');
 }
 
 function modTaper(strength) {
@@ -1039,7 +1116,8 @@ function modTaper(strength) {
     const factor = Math.max(0.2, 1.0 - p[1] * strength * 0.5);
     return [p[0] * factor, p[1], p[2] * factor];
   });
-  updateEngineeringStatsUI(); showToast('مخروطی‌سازی (Taper) اعمال شد');
+  updateEngineeringStatsUI();
+  showToast('مخروطی‌سازی (Taper) اعمال شد');
 }
 
 function modInflate(amount) {
@@ -1050,7 +1128,8 @@ function modInflate(amount) {
     const s = (d + amount) / d;
     return [p[0]*s, p[1]*s, p[2]*s];
   });
-  updateEngineeringStatsUI(); showToast('تورم حجمی (Inflate) اعمال شد');
+  updateEngineeringStatsUI();
+  showToast('تورم حجمی (Inflate) اعمال شد');
 }
 
 function modDecimate() {
@@ -1060,17 +1139,20 @@ function modDecimate() {
   n.verts = n.verts.map(p => [
     Math.round(p[0]/grid)*grid, Math.round(p[1]/grid)*grid, Math.round(p[2]/grid)*grid
   ]);
-  updateEngineeringStatsUI(); showToast('بهینه‌سازی Voxel انجام شد');
+  updateEngineeringStatsUI();
+  showToast('بهینه‌سازی Voxel انجام شد');
 }
 
 function modMirrorX() {
   const n = getSelectedNode(); if (!n) return;
   pushUndo();
   const copy = JSON.parse(JSON.stringify(n));
-  copy.id = uid(); copy.pos[0] = -n.pos[0] || 1.2;
+  copy.id = uid();
+  copy.pos[0] = -n.pos[0] || 1.2;
   copy.verts = copy.verts.map(p => [-p[0], p[1], p[2]]);
   copy.faces = copy.faces.map(f => [f[0], f[2], f[1]]);
-  nodes.push(copy); selectedId = copy.id;
+  nodes.push(copy);
+  selectedId = copy.id;
   showToast('قرینه مدل در محور X ساخته شد');
 }
 
@@ -1118,6 +1200,7 @@ function updateEngineeringStatsUI() {
   document.getElementById('stWeight').textContent = `${weightG.toFixed(1)} g`;
 }
 
+// ==================== TEXTURE STUDIO & 2D PAINT CANVAS ====================
 const paintCanvas = document.getElementById('texPaintCanvas');
 const paintCtx = paintCanvas.getContext('2d');
 let isPainting2D = false;
@@ -1127,32 +1210,44 @@ function setBrushColor(hex, el) {
   document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
   if (el) el.classList.add('active');
 }
+
 function setProceduralTex(type) {
   const n = getSelectedNode(); if (!n) return;
-  n.texType = type; draw2DTexturePreview();
+  n.texType = type;
+  n._webTexModified = true;
+  draw2DTexturePreview();
   showToast(`تکسچر «${type}» روی مدل اعمال شد`);
 }
+
 function setMatColor(hex) {
   const n = getSelectedNode(); if (!n) return;
-  n.color = hex; draw2DTexturePreview();
+  n.color = hex;
+  n._webTexModified = true;
+  draw2DTexturePreview();
 }
+
 function updatePbrSliders() {
   const n = getSelectedNode(); if (!n) return;
   n.metallic = parseFloat(document.getElementById('rngMetallic').value);
   n.roughness = parseFloat(document.getElementById('rngRoughness').value);
   n.texScale = parseFloat(document.getElementById('rngTexScale').value);
+  n._webTexModified = true;
   draw2DTexturePreview();
 }
+
 function clearPaintStrokes() {
-  paintStrokes = []; draw2DTexturePreview();
+  paintStrokes = [];
+  draw2DTexturePreview();
   showToast('قلم‌موهای نقاشی پاک شدند');
 }
+
 function randomizeTexture() {
   const types = ['CHECKER','CARBON','MARBLE','CYBER','WOOD','CIRCUIT','BRICK','SCALES'];
   const cols = ['#00E5FF','#F59E0B','#10B981','#EF4444','#3B82F6','#A855F7'];
   const n = getSelectedNode(); if (!n) return;
   n.texType = types[Math.floor(Math.random() * types.length)];
   n.color = cols[Math.floor(Math.random() * cols.length)];
+  n._webTexModified = true;
   draw2DTexturePreview();
   showToast('تکسچر و رنگ تصادفی تولید شد');
 }
@@ -1179,13 +1274,15 @@ function sampleProceduralUV(u, v, n) {
     rgb = [base[0]*w + 245*(1-w), base[1]*w + 245*(1-w), base[2]*w + 250*(1-w)];
   } else if (t === 'CYBER') {
     const gx = Math.abs((u * sc * 2) % 1), gy = Math.abs((v * sc * 2) % 1);
-    if (gx < 0.12 || gy < 0.12) rgb = [0, 229, 255]; else rgb = [18, 26, 46];
+    if (gx < 0.12 || gy < 0.12) rgb = [0, 229, 255];
+    else rgb = [18, 26, 46];
   } else if (t === 'WOOD') {
     const grain = 0.5 + 0.5 * Math.sin(u * sc * 10 + Math.sin(v * 6) * 2);
     rgb = [140 * grain + 55, 85 * grain + 30, 35 * grain + 15];
   } else if (t === 'CIRCUIT') {
     const cx = Math.floor(u * sc * 3), cy = Math.floor(v * sc * 3);
-    if ((cx * 7 + cy * 13) % 5 === 0) rgb = [16, 185, 129]; else rgb = [15, 35, 30];
+    if ((cx * 7 + cy * 13) % 5 === 0) rgb = [16, 185, 129];
+    else rgb = [15, 35, 30];
   } else if (t === 'BRICK') {
     const row = Math.floor(v * sc * 2), col = (u * sc * 2 + (row & 1) * 0.5) % 1;
     const rowF = (v * sc * 2) % 1;
@@ -1243,6 +1340,7 @@ function downloadTexturePng() {
 function setShading(m) { shadingMode = m; showToast(`حالت نمایش: ${m}`); }
 function setLighting(l) { lightingMode = l; showToast(`نورپردازی: ${l}`); }
 
+// ==================== VIEWPORT CONTROLS ====================
 function toggleOrtho() {
   isOrtho = !isOrtho;
   const b = document.getElementById('btnOrtho');
@@ -1255,19 +1353,21 @@ function toggleVerts() { showVerts = !showVerts; document.getElementById('btnVer
 function toggleDims() { showDims = !showDims; document.getElementById('btnDims').classList.toggle('active', showDims); }
 function toggleSpin() { autoSpin = !autoSpin; document.getElementById('btnSpin').classList.toggle('active', autoSpin); }
 
+// ==================== 3D RENDERER ====================
 const canvas = document.getElementById('viewport');
 const ctx = canvas.getContext('2d');
 
 function resizeCanvas() {
   const rect = canvas.parentElement.getBoundingClientRect();
   if (rect.width < 10 || rect.height < 10) return;
-  canvas.width = rect.width * window.devicePixelRatio;
-  canvas.height = rect.height * window.devicePixelRatio;
-  ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(rect.width * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 window.addEventListener('resize', resizeCanvas);
 
-let dragging3D = false, lastX = 0, lastY = 0;
+let dragging3D = false, lastX = 0, lastY = 0, pinchDist3D = 0;
 canvas.addEventListener('pointerdown', e => { dragging3D = true; lastX = e.clientX; lastY = e.clientY; });
 window.addEventListener('pointerup', () => dragging3D = false);
 window.addEventListener('pointermove', e => {
@@ -1287,6 +1387,27 @@ window.addEventListener('pointermove', e => {
     camPitch = Math.max(-1.45, Math.min(1.45, camPitch + dy * 0.008));
   }
 });
+canvas.addEventListener('touchstart', e => {
+  if (e.touches && e.touches.length === 2) {
+    dragging3D = false;
+    pinchDist3D = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+  }
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  if (e.touches && e.touches.length === 2) {
+    const d = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    if (pinchDist3D > 8 && d > 8) {
+      camDist = Math.max(1.8, Math.min(18, camDist * (pinchDist3D / d)));
+    }
+    pinchDist3D = d;
+  }
+}, { passive: true });
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   camDist = Math.max(1.8, Math.min(18, camDist + e.deltaY * 0.003));
@@ -1313,6 +1434,13 @@ function renderLoop() {
   const rect = canvas.parentElement.getBoundingClientRect();
   const w = rect.width, h = rect.height;
   if (w > 10 && h > 10) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const tw = Math.round(w * dpr), th = Math.round(h * dpr);
+    if (canvas.width !== tw || canvas.height !== th) {
+      canvas.width = tw;
+      canvas.height = th;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     if (autoSpin) camYaw += 0.012;
 
@@ -1329,6 +1457,7 @@ function renderLoop() {
       return [cx + x1 * f, centerY - y2 * f, z2];
     }
 
+    // 1. CAD Ground Grid
     const gy = -1.0;
     for (let i = -8; i <= 8; i++) {
       const a = proj(-8, gy, i), b = proj(8, gy, i);
@@ -1345,6 +1474,7 @@ function renderLoop() {
       }
     }
 
+    // 2. Triangles & Shading
     const tris = [], dots = [];
     let vCount = 0, tCount = 0;
 
@@ -1360,7 +1490,7 @@ function renderLoop() {
       const hasTex = (n.texType && n.texType !== 'NONE') || (n.photoGrid && n.photoSize > 0) || paintStrokes.length > 0;
       const baseRgb = shadingMode === 'CLAY' ? [217, 119, 87] : hexToRgb(n.color);
 
-      n.faces.forEach(f => {
+      n.faces.forEach((f, fIdx) => {
         const s0 = pVerts[f[0]], s1 = pVerts[f[1]], s2 = pVerts[f[2]];
         if (!s0 || !s1 || !s2) return;
         const v0 = wVerts[f[0]], v1 = wVerts[f[1]], v2 = wVerts[f[2]];
@@ -1371,7 +1501,9 @@ function renderLoop() {
         nx /= len; ny /= len; nz /= len;
 
         let rgb = baseRgb;
-        if (hasTex && shadingMode !== 'CLAY') {
+        if (shadingMode !== 'CLAY' && n.faceColors && n.faceColors[fIdx] && !n._webTexModified && (!n.photoGrid || n.photoSize === 0) && paintStrokes.length === 0) {
+          rgb = hexToRgb(n.faceColors[fIdx]);
+        } else if (hasTex && shadingMode !== 'CLAY') {
           const l0 = n.verts[f[0]], l1 = n.verts[f[1]], l2 = n.verts[f[2]];
           const lx = (l0[0]+l1[0]+l2[0])/3, ly = (l0[1]+l1[1]+l2[1])/3, lz = (l0[2]+l1[2]+l2[2])/3;
           let u, v;
@@ -1424,6 +1556,7 @@ function renderLoop() {
       }
     }
 
+    // 3. Orientation Compass in top-right corner
     const gx = w - 34, gyCompass = 64, arm = 16;
     ctx.fillStyle = 'rgba(17,24,39,0.75)';
     ctx.beginPath(); ctx.arc(gx, gyCompass, 22, 0, Math.PI*2); ctx.fill();
@@ -1438,10 +1571,22 @@ function renderLoop() {
   requestAnimationFrame(renderLoop);
 }
 
+// ==================== REAL EXPORTERS (.GLB, .STL, .OBJ, .PLY, .GLTF, .HTML) ====================
 function getProjectBaseName() {
   return (document.getElementById('inpProjectName').value || 'PolyForge_Model').trim().replace(/\s+/g, '_');
 }
 function triggerDownload(blob, filename) {
+  if (window.AndroidBridge && typeof window.AndroidBridge.saveBase64File === 'function') {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      try {
+        window.AndroidBridge.saveBase64File(reader.result, filename, blob.type || 'application/octet-stream');
+        showToast(`فایل «${filename}» آماده ذخیره و اشتراک‌گذاری شد`);
+      } catch (err) {}
+    };
+    reader.readAsDataURL(blob);
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
@@ -1544,6 +1689,7 @@ function downloadStandaloneHTML() {
   triggerDownload(new Blob([document.documentElement.outerHTML], {type: 'text/html'}), getProjectBaseName() + '_studio.html');
 }
 
+// ==================== IMPORT .OBJ / .STL / .GLB / .GLTF / .PLY & PHOTOS FROM DEVICE ====================
 function openImportModal() {
   document.getElementById('importModal').style.display = 'flex';
 }
@@ -1585,6 +1731,7 @@ function createPhotoReliefNode(imgEl, fileName) {
   const v = [], f = [];
   const half = 1.05, baseY = -0.14, reliefH = 0.44;
 
+  // 1. Top displaced relief vertices
   for (let gy = 0; gy < res; gy++) {
     const z = (gy / (res - 1) - 0.5) * 2 * half;
     for (let gx = 0; gx < res; gx++) {
@@ -1594,6 +1741,7 @@ function createPhotoReliefNode(imgEl, fileName) {
       v.push([x, 0.04 + lum * reliefH, z]);
     }
   }
+  // 2. Bottom flat base vertices
   const botOff = v.length;
   for (let gy = 0; gy < res; gy++) {
     const z = (gy / (res - 1) - 0.5) * 2 * half;
@@ -1602,6 +1750,7 @@ function createPhotoReliefNode(imgEl, fileName) {
       v.push([x, baseY, z]);
     }
   }
+  // 3. Top & Bottom faces
   for (let gy = 0; gy < res - 1; gy++) {
     for (let gx = 0; gx < res - 1; gx++) {
       const i00 = gy * res + gx, i10 = i00 + 1, i01 = (gy + 1) * res + gx, i11 = i01 + 1;
@@ -1610,6 +1759,7 @@ function createPhotoReliefNode(imgEl, fileName) {
       f.push([b00, b10, b01], [b10, b11, b01]);
     }
   }
+  // 4. Side walls
   for (let i = 0; i < res - 1; i++) {
     const tf0 = i, tf1 = i + 1, bf0 = botOff + tf0, bf1 = botOff + tf1;
     f.push([tf0, tf1, bf1], [tf0, bf1, bf0]);
@@ -1647,7 +1797,9 @@ function handlePhotoTo3DImport(e) {
     img.onload = () => {
       pushUndo();
       const reliefNode = createPhotoReliefNode(img, file.name);
-      const append = document.getElementById('chkModalAppend')?.checked || document.getElementById('chkAppendMode')?.checked;
+      const chkModal = document.getElementById('chkModalAppend');
+      const chkDrawer = document.getElementById('chkAppendMode');
+      const append = (chkModal && chkModal.checked) || (chkDrawer && chkDrawer.checked);
       if (append && nodes.length > 0) {
         reliefNode.pos = [1.4, 0, 0];
         nodes.push(reliefNode);
@@ -1734,6 +1886,7 @@ function handleFileImport(e) {
   if (!file) return;
   const lower = file.name.toLowerCase();
 
+  // If user selected a photo/image via the file picker, convert it to 3D Relief automatically
   if (file.type.startsWith('image/') || /\.(png|jpg|jpeg|webp|bmp)$/i.test(lower)) {
     handlePhotoTo3DImport(e);
     return;
@@ -1757,7 +1910,7 @@ function handleFileImport(e) {
       v = parsed.v; f = parsed.f;
     } else if (lower.endsWith('.gltf')) {
       const gltf = JSON.parse(new TextDecoder().decode(bytes));
-      const uri = gltf.buffers?.[0]?.uri || '';
+      const uri = (gltf && gltf.buffers && gltf.buffers[0] && gltf.buffers[0].uri) ? gltf.buffers[0].uri : '';
       if (uri.includes('base64,')) {
         const b64 = atob(uri.split('base64,')[1]);
         const bin = new Uint8Array(b64.length);
@@ -1803,6 +1956,7 @@ function handleFileImport(e) {
         }
       });
     } else {
+      // Binary or ASCII STL
       const headStr = new TextDecoder().decode(bytes.subarray(0, Math.min(256, bytes.length)));
       if (headStr.trim().startsWith('solid') && headStr.includes('facet')) {
         const lines = new TextDecoder().decode(bytes).split(/\r?\n/);
@@ -1841,7 +1995,9 @@ function handleFileImport(e) {
       node.nameFa = 'مدل واردشده (' + file.name + ')';
       node.verts = normalizeMeshVerts(v);
       node.faces = f;
-      const append = document.getElementById('chkModalAppend')?.checked || document.getElementById('chkAppendMode')?.checked;
+      const chkModal = document.getElementById('chkModalAppend');
+      const chkDrawer = document.getElementById('chkAppendMode');
+      const append = (chkModal && chkModal.checked) || (chkDrawer && chkDrawer.checked);
       if (append && nodes.length > 0) {
         node.pos = [1.4, 0, 0];
         nodes.push(node);
@@ -1861,9 +2017,15 @@ function handleFileImport(e) {
   e.target.value = '';
 }
 
+// ==================== OFFLINE SAVED PROJECTS ====================
 const STORAGE_KEY = 'polyforge_saved_projects_v2';
+let memorySavedProjects = [];
 function getSavedProjects() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return memorySavedProjects;
 }
 function saveProjectOffline() {
   const list = getSavedProjects();
@@ -1873,7 +2035,10 @@ function saveProjectOffline() {
     date: new Date().toLocaleDateString('fa-IR'),
     sceneJson: JSON.stringify(nodes)
   });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, 15)));
+  memorySavedProjects = list.slice(0, 15);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(memorySavedProjects));
+  } catch (e) {}
   renderSavedProjectsList();
   showToast(`پروژه «${title}» در حافظه آفلاین ذخیره شد`);
 }
@@ -1882,7 +2047,7 @@ function loadSavedProject(id) {
   if (!item) return;
   pushUndo();
   nodes = JSON.parse(item.sceneJson);
-  selectedId = nodes[0]?.id || null;
+  selectedId = nodes[0] ? nodes[0].id : null;
   selectTab('VIEWPORT');
   showToast(`پروژه «${item.title}» بارگذاری شد`);
 }
@@ -1904,12 +2069,21 @@ function renderSavedProjectsList() {
   `).join('');
 }
 
-spawnPrimitive('CUBE', false);
+// ==================== INITIALIZATION ====================
+const INITIAL_EMBEDDED_NODES = /*__POLYFORGE_EMBEDDED_NODES__*/ null;
+if (Array.isArray(INITIAL_EMBEDDED_NODES) && INITIAL_EMBEDDED_NODES.length > 0) {
+  nodes = JSON.parse(JSON.stringify(INITIAL_EMBEDDED_NODES));
+  selectedId = nodes[0].id;
+  syncUiFromSelected();
+  updateEngineeringStatsUI();
+} else {
+  spawnPrimitive('CUBE', false);
+}
 hideToast();
 resizeCanvas();
 requestAnimationFrame(renderLoop);
 
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   });

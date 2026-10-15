@@ -1,6 +1,7 @@
 package com.example.engine
 
 import com.example.model.SceneNode3D
+import java.io.File
 import java.util.Base64
 import java.util.Locale
 
@@ -126,14 +127,57 @@ object Web3DGenerator {
         sb.append("]")
 
         val embeddedSceneJson = sb.toString()
+        return buildFullStudioHtml(projectName, embeddedSceneJson)
+    }
 
-        return """<!DOCTYPE html>
+    private fun loadBaseStudioTemplate(): String {
+        val resStream = Web3DGenerator::class.java.getResourceAsStream("/web/index.html")
+            ?: Web3DGenerator::class.java.classLoader?.getResourceAsStream("web/index.html")
+        if (resStream != null) {
+            runCatching {
+                val text = resStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                if (text.length > 5000) return text
+            }
+        }
+
+        val candidateFiles = listOf(
+            File("index.html"),
+            File("app/src/main/resources/web/index.html"),
+            File("app/src/main/assets/web/index.html"),
+            File("app/src/main/assets/index.html"),
+            File("web/index.html")
+        )
+        for (f in candidateFiles) {
+            if (f.exists() && f.length() > 5000L) {
+                runCatching {
+                    val text = f.readText(Charsets.UTF_8)
+                    if (text.contains("PolyForge 3D Studio")) return text
+                }
+            }
+        }
+        return FALLBACK_STUDIO_HTML
+    }
+
+    private fun buildFullStudioHtml(projectName: String, embeddedSceneJson: String): String {
+        val raw = loadBaseStudioTemplate()
+        val safeProject = projectName.trim().ifBlank { "PolyForge_Model" }
+        if (raw.contains("/*__POLYFORGE_EMBEDDED_NODES__*/")) {
+            return raw
+                .replace("/*__POLYFORGE_EMBEDDED_NODES__*/ null", "/*__POLYFORGE_EMBEDDED_NODES__*/ $embeddedSceneJson")
+                .replace("value=\"PolyForge_Model\"", "value=\"${safeProject.replace("\"", "&quot;")}\"")
+                .replace("PolyForge 3D Studio — استودیو مدلسازی سه‌بعدی", "PolyForge 3D Studio — $safeProject")
+        }
+        return FALLBACK_STUDIO_HTML
+            .replace("__PROJECT_NAME__", safeProject)
+    }
+
+    private val FALLBACK_STUDIO_HTML = """<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#0B101E" />
-<title>PolyForge 3D Studio — $projectName</title>
+<title>PolyForge 3D Studio — __PROJECT_NAME__</title>
 <style>
   :root {
     --bg: #0B101E;
@@ -233,7 +277,7 @@ object Web3DGenerator {
   <div class="brand">
     <div class="brand-badge">3D</div>
     <div>
-      <div class="brand-title">PolyForge 3D — $projectName</div>
+      <div class="brand-title">PolyForge 3D — __PROJECT_NAME__</div>
       <div id="statsText" class="brand-stats">0 Verts • 0 Tris</div>
     </div>
   </div>
@@ -337,7 +381,7 @@ object Web3DGenerator {
 </nav>
 
 <script>
-const EMBEDDED_SCENE = $embeddedSceneJson;
+const EMBEDDED_SCENE = [];
 let meshes = JSON.parse(JSON.stringify(EMBEDDED_SCENE));
 let camYaw = -0.55, camPitch = 0.38, camDist = 4.6, panX = 0, panY = 0;
 let showWire = false, autoSpin = false, texMode = 'NONE';
@@ -644,7 +688,7 @@ function downloadOBJ() {
     m.faces.forEach(f => { out += `f ${'$'}{f[0]+offset} ${'$'}{f[1]+offset} ${'$'}{f[2]+offset}\n`; });
     offset += m.verts.length;
   });
-  triggerDownload(new Blob([out], {type: 'model/obj'}), '${projectName}.obj');
+  triggerDownload(new Blob([out], {type: 'model/obj'}), '__PROJECT_NAME__.obj');
 }
 
 function downloadSTL() {
@@ -664,7 +708,7 @@ function downloadSTL() {
       dv.setUint16(pos, 0, true); pos += 2;
     });
   });
-  triggerDownload(new Blob([buf], {type: 'model/stl'}), '${projectName}.stl');
+  triggerDownload(new Blob([buf], {type: 'model/stl'}), '__PROJECT_NAME__.stl');
 }
 
 function downloadGLB() {
@@ -684,7 +728,7 @@ function downloadGLB() {
   const binBytes = new Uint8Array(floatArr.buffer);
   const gltf = {
     asset: { version: "2.0", generator: "PolyForge 3D Web Studio" },
-    scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0, name: "$projectName" }],
+    scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0, name: "__PROJECT_NAME__" }],
     meshes: [{ primitives: [{ attributes: { POSITION: 0 }, mode: 4 }] }],
     buffers: [{ byteLength: binBytes.byteLength }],
     bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: binBytes.byteLength, target: 34962 }],
@@ -707,12 +751,11 @@ function downloadGLB() {
   dv.setUint32(binStart, binBytes.byteLength + binPad, true);
   dv.setUint32(binStart + 4, 0x004E4942, true);
   new Uint8Array(out, binStart + 8, binBytes.byteLength).set(binBytes);
-  triggerDownload(new Blob([out], {type: 'model/gltf-binary'}), '${projectName}.glb');
+  triggerDownload(new Blob([out], {type: 'model/gltf-binary'}), '__PROJECT_NAME__.glb');
 }
 </script>
 </body>
 </html>"""
-    }
 
     private fun round3(v: Float): Double =
         kotlin.math.round(v * 1000.0) / 1000.0
