@@ -169,6 +169,7 @@ object Web3DGenerator {
         }
         return FALLBACK_STUDIO_HTML
             .replace("__PROJECT_NAME__", safeProject)
+            .replace("const EMBEDDED_SCENE = [];", "const EMBEDDED_SCENE = $embeddedSceneJson;")
     }
 
     private val FALLBACK_STUDIO_HTML = """<!DOCTYPE html>
