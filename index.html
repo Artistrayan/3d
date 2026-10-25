@@ -603,6 +603,35 @@
             <button onclick="setLighting('ARCTIC')">آزمایشگاه سفید</button>
           </div>
         </div>
+
+        <div class="section-card">
+          <div class="section-title">نورپردازی پیشرفته (Advanced Light)</div>
+          <div class="slider-row">
+            <span>شدت تابش نور (Light Intensity)</span>
+            <input id="rngLightIntensity" type="range" min="0.2" max="2.5" step="0.05" value="1.0" oninput="updateAdvancedLight()" />
+            <span id="lblLightIntensity" style="font-size:10px;font-family:monospace;color:var(--cyan);width:36px;text-align:left;">1.00x</span>
+          </div>
+          <div class="slider-row">
+            <span>نرمی سایه کف (Shadow Softness)</span>
+            <input id="rngShadowSoftness" type="range" min="0.0" max="1.0" step="0.05" value="0.5" oninput="updateAdvancedLight()" />
+            <span id="lblShadowSoftness" style="font-size:10px;font-family:monospace;color:var(--amber);width:36px;text-align:left;">50%</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+            <span style="font-size:11px;color:var(--muted);">رنگ نور محیطی (Ambient Light Color):</span>
+            <input id="colAmbientLight" type="color" value="#1E293B" onchange="updateAdvancedLight()" style="width:38px;height:24px;border:none;background:none;cursor:pointer;" />
+          </div>
+          <div class="color-row" style="margin-top:6px;">
+            <div class="color-swatch ambient-swatch active" style="background:#1E293B" title="تیره استودیویی" onclick="setAmbientLightColor('#1E293B', this)"></div>
+            <div class="color-swatch ambient-swatch" style="background:#0F172A" title="شب سرمه‌ای" onclick="setAmbientLightColor('#0F172A', this)"></div>
+            <div class="color-swatch ambient-swatch" style="background:#1E3A8A" title="سایبری نئون" onclick="setAmbientLightColor('#1E3A8A', this)"></div>
+            <div class="color-swatch ambient-swatch" style="background:#451A03" title="گرم خورشیدی" onclick="setAmbientLightColor('#451A03', this)"></div>
+            <div class="color-swatch ambient-swatch" style="background:#064E3B" title="زمردی جنگلی" onclick="setAmbientLightColor('#064E3B', this)"></div>
+            <div class="color-swatch ambient-swatch" style="background:#3B0764" title="بنفش نئونی" onclick="setAmbientLightColor('#3B0764', this)"></div>
+            <div class="color-swatch ambient-swatch" style="background:#475569" title="خاکستری CAD" onclick="setAmbientLightColor('#475569', this)"></div>
+            <div class="color-swatch ambient-swatch" style="background:#78350F" title="کهربایی" onclick="setAmbientLightColor('#78350F', this)"></div>
+            <div class="color-swatch ambient-swatch" style="background:#FFFFFF" title="سفید استودیویی" onclick="setAmbientLightColor('#FFFFFF', this)"></div>
+          </div>
+        </div>
       </div>
 
       <!-- TAB 5: EXPORT & PROJECTS (خروجی‌ها، وارد کردن فایل و پروژه‌ها) -->
@@ -676,6 +705,7 @@ let sheetMaximized = false;
 let toolMode = 'ORBIT';
 let isOrtho = false, showWire = false, showVerts = false, showDims = false, autoSpin = false;
 let shadingMode = 'PBR', lightingMode = 'CYBER';
+let lightIntensity = 1.0, ambientLightColor = '#1E293B', shadowSoftness = 0.5;
 let camYaw = -0.58, camPitch = 0.40, camDist = 4.6, panX = 0, panY = 0;
 
 // Paint strokes for 2D/3D live texture painting
@@ -1340,6 +1370,34 @@ function downloadTexturePng() {
 function setShading(m) { shadingMode = m; showToast(`حالت نمایش: ${m}`); }
 function setLighting(l) { lightingMode = l; showToast(`نورپردازی: ${l}`); }
 
+function updateAdvancedLight() {
+  const rngI = document.getElementById('rngLightIntensity');
+  const rngS = document.getElementById('rngShadowSoftness');
+  const colA = document.getElementById('colAmbientLight');
+  if (rngI) {
+    lightIntensity = parseFloat(rngI.value) || 1.0;
+    const lblI = document.getElementById('lblLightIntensity');
+    if (lblI) lblI.textContent = lightIntensity.toFixed(2) + 'x';
+  }
+  if (rngS) {
+    shadowSoftness = parseFloat(rngS.value) || 0.5;
+    const lblS = document.getElementById('lblShadowSoftness');
+    if (lblS) lblS.textContent = Math.round(shadowSoftness * 100) + '%';
+  }
+  if (colA) {
+    ambientLightColor = colA.value || '#1E293B';
+  }
+}
+
+function setAmbientLightColor(hex, el) {
+  ambientLightColor = hex;
+  const colA = document.getElementById('colAmbientLight');
+  if (colA) colA.value = hex;
+  document.querySelectorAll('.ambient-swatch').forEach(s => s.classList.remove('active'));
+  if (el) el.classList.add('active');
+  showToast('رنگ نور محیطی تنظیم شد');
+}
+
 // ==================== VIEWPORT CONTROLS ====================
 function toggleOrtho() {
   isOrtho = !isOrtho;
@@ -1474,6 +1532,24 @@ function renderLoop() {
       }
     }
 
+    // 1.5 Soft Contact Shadows on CAD Ground
+    const ambRgb = hexToRgb(ambientLightColor || '#1E293B');
+    nodes.forEach(n => {
+      const pos = n.pos || [0, 0, 0];
+      const scl = n.scale || [1, 1, 1];
+      const sc = proj(pos[0], gy + 0.005, pos[2]);
+      const spread = (0.75 * Math.max(scl[0], scl[2])) * (0.8 + shadowSoftness * 0.5);
+      const se = proj(pos[0] + spread, gy + 0.005, pos[2]);
+      if (sc && se) {
+        const rad = Math.max(12, Math.abs(sc[0] - se[0]));
+        const alpha = Math.max(0.06, (0.40 - shadowSoftness * 0.22));
+        ctx.beginPath();
+        ctx.ellipse(sc[0], sc[1], rad, rad * (0.38 + shadowSoftness * 0.12), 0, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0,0,0,${alpha.toFixed(2)})`;
+        ctx.fill();
+      }
+    });
+
     // 2. Triangles & Shading
     const tris = [], dots = [];
     let vCount = 0, tCount = 0;
@@ -1524,14 +1600,19 @@ function renderLoop() {
         if (lightingMode === 'SUNSET') { lx = 0.75; ly = 0.35; lz = 0.55; lBoost = 1.08; }
         if (lightingMode === 'ARCTIC') { lBoost = 1.16; }
 
-        const light = Math.max(0.24, Math.abs(nx*lx + ny*ly + nz*lz)) * lBoost;
+        const light = Math.max(0.18, Math.abs(nx*lx + ny*ly + nz*lz)) * lBoost * lightIntensity;
         const shininess = Math.max(6, (1.05 - (n.roughness || 0.3)) * 28);
-        const spec = Math.pow(Math.max(0, ny*0.7 + nz*0.6), shininess) * (40 + (n.metallic || 0.3)*55);
+        const spec = Math.pow(Math.max(0, ny*0.7 + nz*0.6), shininess) * (40 + (n.metallic || 0.3)*55) * lightIntensity;
         const alpha = shadingMode === 'XRAY' ? 0.42 : 1.0;
+
+        const ambWeight = 0.30;
+        const litR = Math.min(255, Math.max(0, Math.round(rgb[0] * light + ambRgb[0] * ambWeight + spec)));
+        const litG = Math.min(255, Math.max(0, Math.round(rgb[1] * light + ambRgb[1] * ambWeight + spec)));
+        const litB = Math.min(255, Math.max(0, Math.round(rgb[2] * light + ambRgb[2] * ambWeight + spec)));
 
         tris.push({
           s0, s1, s2, z: (s0[2]+s1[2]+s2[2])/3,
-          fill: `rgba(${Math.min(255,Math.round(rgb[0]*light+spec))},${Math.min(255,Math.round(rgb[1]*light+spec))},${Math.min(255,Math.round(rgb[2]*light+spec))},${alpha})`
+          fill: `rgba(${litR},${litG},${litB},${alpha})`
         });
       });
     });

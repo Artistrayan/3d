@@ -76,6 +76,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.data.ExportLogEntity
 import com.example.data.ProjectEntity
 import com.example.engine.ExportPayload
@@ -107,8 +108,14 @@ fun MaterialAndLightPanel(
     selectedNode: SceneNode3D?,
     shadingMode: ViewportShadingMode,
     lightingPreset: StudioLightingPreset,
+    lightIntensity: Float = 1.0f,
+    ambientLightColorHex: Long = 0xFF1E293BL,
+    shadowSoftness: Float = 0.5f,
     onSetShadingMode: (ViewportShadingMode) -> Unit,
     onSetLightingPreset: (StudioLightingPreset) -> Unit,
+    onSetLightIntensity: (Float) -> Unit = {},
+    onSetAmbientLightColor: (Long) -> Unit = {},
+    onSetShadowSoftness: (Float) -> Unit = {},
     onUpdateMaterial: ((PbrMaterial) -> PbrMaterial) -> Unit,
     onApplyPresetMaterial: (PbrMaterial, Boolean) -> Unit,
     onSelectTextureType: (TextureType) -> Unit,
@@ -632,7 +639,149 @@ fun MaterialAndLightPanel(
             }
         }
 
-        // 4. 16 Curated PBR + Textured Presets
+        // 4. Advanced Light (Intensity, Ambient Light Color, Shadow Softness)
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = StudioSurfaceElevated),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, SculptAmber.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
+                    .testTag("advanced_light_card")
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SculptAmber.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.LightMode, contentDescription = null, tint = SculptAmber)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = if (isPersian) "نورپردازی پیشرفته (Advanced Light)" else "Advanced Light",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (isPersian)
+                                    "تنظیم دقیق شدت تابش، رنگ نور محیطی و نرمی سایه‌های کف"
+                                else
+                                    "Fine-tune light intensity, ambient environment color & floor shadow softness",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = SculptAmber
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 1. Intensity Slider
+                    PbrParameterSlider(
+                        label = if (isPersian) "شدت نور (Light Intensity)" else "Light Intensity",
+                        value = lightIntensity,
+                        valueRange = 0.2f..2.5f,
+                        valueText = String.format(Locale.US, "%.2fx", lightIntensity),
+                        onValueChange = onSetLightIntensity,
+                        accent = SculptAmber
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 2. Ambient Light Color
+                    Text(
+                        text = if (isPersian) "رنگ نور محیطی (Ambient Light Color):" else "Ambient Light Color:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val ambientColorSwatches = remember {
+                        listOf(
+                            0xFF1E293BL to (if (isPersian) "تیره استودیو" else "Studio Dark"),
+                            0xFF0F172AL to (if (isPersian) "شب سرمه‌ای" else "Deep Navy"),
+                            0xFF1E3A8AL to (if (isPersian) "سایبری نئون" else "Cyber Blue"),
+                            0xFF451A03L to (if (isPersian) "گرم خورشیدی" else "Warm Sun"),
+                            0xFF064E3BL to (if (isPersian) "زمردی جنگلی" else "Forest Green"),
+                            0xFF3B0764L to (if (isPersian) "بنفش نئونی" else "Neon Purple"),
+                            0xFF475569L to (if (isPersian) "خاکستری CAD" else "CAD Slate"),
+                            0xFF78350FL to (if (isPersian) "کهربایی" else "Amber Glow"),
+                            0xFFFFFFFFL to (if (isPersian) "سفید خالص" else "Pure White")
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ambientColorSwatches.forEach { (hex, title) ->
+                            val isSelected = ambientLightColorHex == hex
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onSetAmbientLightColor(hex) }
+                                    .padding(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(hex))
+                                        .border(
+                                            width = if (isSelected) 3.dp else 1.dp,
+                                            color = if (isSelected) SculptAmber else StudioBorder,
+                                            shape = CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = if (hex == 0xFFFFFFFFL) Color.Black else Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isSelected) SculptAmber else TextSecondary,
+                                    fontSize = 9.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 3. Shadow Softness Slider
+                    PbrParameterSlider(
+                        label = if (isPersian) "نرمی سایه کف (Shadow Softness)" else "Shadow Softness",
+                        value = shadowSoftness,
+                        valueRange = 0.0f..1.0f,
+                        valueText = String.format(Locale.US, "%d%%", (shadowSoftness * 100).toInt()),
+                        onValueChange = onSetShadowSoftness,
+                        accent = CyberCyan
+                    )
+                }
+            }
+        }
+
+        // 5. 16 Curated PBR + Textured Presets
         item {
             Text(
                 text = if (isPersian) "۱۶ متریال و تکسچر آماده استودیویی (PBR + Texture Presets)" else "16 Curated PBR & Texture Presets",

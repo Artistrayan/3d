@@ -81,6 +81,9 @@ fun Viewport3DCanvas(
     selectedNodeId: String?,
     shadingMode: ViewportShadingMode,
     lightingPreset: StudioLightingPreset,
+    lightIntensity: Float = 1.0f,
+    ambientLightColorHex: Long = 0xFF1E293BL,
+    shadowSoftness: Float = 0.5f,
     toolMode: TransformToolMode,
     axisConstraint: AxisConstraint,
     isOrthographic: Boolean,
@@ -309,15 +312,18 @@ fun Viewport3DCanvas(
                     )
 
                     val shadowCenter3D = Vec3(node.position.x, gridY + 0.01f, node.position.z)
-                    val shadowLeft3D = Vec3(node.position.x - 0.75f * node.scale.x, gridY + 0.01f, node.position.z)
+                    val shadowSpread = 0.75f * (0.8f + shadowSoftness * 0.5f)
+                    val shadowLeft3D = Vec3(node.position.x - shadowSpread * node.scale.x, gridY + 0.01f, node.position.z)
                     val sCenter = projectWorld(shadowCenter3D)
                     val sEdge = projectWorld(shadowLeft3D)
                     if (sCenter != null && sEdge != null) {
-                        val sr = abs(sCenter.first.x - sEdge.first.x).coerceIn(12f, 160f)
+                        val sr = abs(sCenter.first.x - sEdge.first.x).coerceIn(10f, 180f)
+                        val shadowAlpha = (0.38f - shadowSoftness * 0.22f).coerceIn(0.08f, 0.45f)
+                        val verticalSquash = (0.42f + shadowSoftness * 0.12f)
                         drawOval(
-                            color = Color.Black.copy(alpha = 0.28f),
-                            topLeft = Offset(sCenter.first.x - sr, sCenter.first.y - sr * 0.42f),
-                            size = androidx.compose.ui.geometry.Size(sr * 2f, sr * 0.84f)
+                            color = Color.Black.copy(alpha = shadowAlpha),
+                            topLeft = Offset(sCenter.first.x - sr, sCenter.first.y - sr * verticalSquash),
+                            size = androidx.compose.ui.geometry.Size(sr * 2f, sr * (verticalSquash * 2f))
                         )
                     }
                 }
@@ -369,9 +375,10 @@ fun Viewport3DCanvas(
 
                     val nDotL = orientedNormal.dot(keyDir).coerceAtLeast(0f)
                     val hemiFactor = (orientedNormal.y * 0.5f + 0.5f).coerceIn(0f, 1f)
-                    val ambR = groundColor.red * (1f - hemiFactor) + skyColor.red * hemiFactor
-                    val ambG = groundColor.green * (1f - hemiFactor) + skyColor.green * hemiFactor
-                    val ambB = groundColor.blue * (1f - hemiFactor) + skyColor.blue * hemiFactor
+                    val customAmbientColor = Color(ambientLightColorHex)
+                    val ambR = (groundColor.red * (1f - hemiFactor) + skyColor.red * hemiFactor) * 0.4f + customAmbientColor.red * 0.6f
+                    val ambG = (groundColor.green * (1f - hemiFactor) + skyColor.green * hemiFactor) * 0.4f + customAmbientColor.green * 0.6f
+                    val ambB = (groundColor.blue * (1f - hemiFactor) + skyColor.blue * hemiFactor) * 0.4f + customAmbientColor.blue * 0.6f
 
                     val nDotH = orientedNormal.dot(halfVec).coerceAtLeast(0f)
                     val shininess = (2f / (roughness * roughness + 0.04f)).coerceIn(4f, 128f)
@@ -379,19 +386,19 @@ fun Viewport3DCanvas(
                     val rim = (1f - nDotV).pow(3.0f) * (0.28f + metallic * 0.35f)
 
                     val diffuseWeight = (1f - metallic * 0.45f)
-                    val litR = (surfaceColor.red * (0.28f + ambR * 0.38f + nDotL * keyColor.red * 0.85f * diffuseWeight) +
-                            (keyColor.red * 0.6f + surfaceColor.red * 0.4f) * specIntensity +
-                            rimColor.red * rim +
+                    val litR = (surfaceColor.red * (0.16f + ambR * 0.52f + nDotL * keyColor.red * 0.85f * diffuseWeight * lightIntensity) +
+                            (keyColor.red * 0.6f + surfaceColor.red * 0.4f) * specIntensity * lightIntensity +
+                            rimColor.red * rim * lightIntensity +
                             emitColor.red * emitStrength).coerceIn(0f, 1f)
 
-                    val litG = (surfaceColor.green * (0.28f + ambG * 0.38f + nDotL * keyColor.green * 0.85f * diffuseWeight) +
-                            (keyColor.green * 0.6f + surfaceColor.green * 0.4f) * specIntensity +
-                            rimColor.green * rim +
+                    val litG = (surfaceColor.green * (0.16f + ambG * 0.52f + nDotL * keyColor.green * 0.85f * diffuseWeight * lightIntensity) +
+                            (keyColor.green * 0.6f + surfaceColor.green * 0.4f) * specIntensity * lightIntensity +
+                            rimColor.green * rim * lightIntensity +
                             emitColor.green * emitStrength).coerceIn(0f, 1f)
 
-                    val litB = (surfaceColor.blue * (0.28f + ambB * 0.38f + nDotL * keyColor.blue * 0.85f * diffuseWeight) +
-                            (keyColor.blue * 0.6f + surfaceColor.blue * 0.4f) * specIntensity +
-                            rimColor.blue * rim +
+                    val litB = (surfaceColor.blue * (0.16f + ambB * 0.52f + nDotL * keyColor.blue * 0.85f * diffuseWeight * lightIntensity) +
+                            (keyColor.blue * 0.6f + surfaceColor.blue * 0.4f) * specIntensity * lightIntensity +
+                            rimColor.blue * rim * lightIntensity +
                             emitColor.blue * emitStrength).coerceIn(0f, 1f)
 
                     val alpha = when (shadingMode) {

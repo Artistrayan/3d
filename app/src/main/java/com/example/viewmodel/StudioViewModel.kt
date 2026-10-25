@@ -69,6 +69,9 @@ data class StudioUiState(
     val snapToGrid: Boolean = false,
     val shadingMode: ViewportShadingMode = ViewportShadingMode.PBR_LIT,
     val lightingPreset: StudioLightingPreset = StudioLightingPreset.CYBER_STUDIO,
+    val lightIntensity: Float = 1.0f,
+    val ambientLightColorHex: Long = 0xFF1E293BL,
+    val shadowSoftness: Float = 0.5f,
     val isOrthographic: Boolean = false,
     val showGrid: Boolean = true,
     val showWireframeOverlay: Boolean = false,
@@ -256,6 +259,18 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setLightingPreset(preset: StudioLightingPreset) {
         _uiState.update { it.copy(lightingPreset = preset) }
+    }
+
+    fun setLightIntensity(intensity: Float) {
+        _uiState.update { it.copy(lightIntensity = intensity.coerceIn(0.2f, 2.5f)) }
+    }
+
+    fun setAmbientLightColor(colorHex: Long) {
+        _uiState.update { it.copy(ambientLightColorHex = colorHex) }
+    }
+
+    fun setShadowSoftness(softness: Float) {
+        _uiState.update { it.copy(shadowSoftness = softness.coerceIn(0.0f, 1.0f)) }
     }
 
     fun toggleOrthographic() {

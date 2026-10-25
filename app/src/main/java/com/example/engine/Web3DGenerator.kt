@@ -359,6 +359,17 @@ object Web3DGenerator {
           <button style="background:#A855F7;color:#fff" onclick="setColor('#A855F7')">بنفش</button>
           <button style="background:#F8FAFC;color:#000" onclick="setColor('#F8FAFC')">نقره‌ای</button>
         </div>
+        <div style="margin-top:10px;font-size:12px;font-weight:700;color:#00E5FF">نورپردازی پیشرفته (Advanced Light)</div>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-top:4px;">
+          <label style="font-size:10px;display:flex;justify-content:space-between"><span>شدت نور (Intensity)</span><span id="lblLightInt">1.00x</span></label>
+          <input type="range" min="0.2" max="2.5" step="0.05" value="1.0" oninput="lightIntensity=parseFloat(this.value);document.getElementById('lblLightInt').textContent=parseFloat(this.value).toFixed(2)+'x'" />
+          <label style="font-size:10px;display:flex;justify-content:space-between"><span>نرمی سایه (Shadow Softness)</span><span id="lblShadSoft">50%</span></label>
+          <input type="range" min="0.0" max="1.0" step="0.05" value="0.5" oninput="shadowSoftness=parseFloat(this.value);document.getElementById('lblShadSoft').textContent=Math.round(this.value*100)+'%'" />
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+          <span style="font-size:11px;">رنگ نور محیطی:</span>
+          <input type="color" value="#1E293B" onchange="ambientLightColor=this.value" style="width:36px;height:24px;border:none;background:none;cursor:pointer;" />
+        </div>
       </div>
       <div id="panelEXPORT" class="section-card hidden">
         <div style="font-size:12px;font-weight:700;">خروجی استاندارد سه‌بعدی</div>
@@ -386,6 +397,7 @@ const EMBEDDED_SCENE = [];
 let meshes = JSON.parse(JSON.stringify(EMBEDDED_SCENE));
 let camYaw = -0.55, camPitch = 0.38, camDist = 4.6, panX = 0, panY = 0;
 let showWire = false, autoSpin = false, texMode = 'NONE';
+let lightIntensity = 1.0, shadowSoftness = 0.5, ambientLightColor = '#1E293B';
 
 const canvas = document.getElementById('viewport');
 const ctx = canvas.getContext('2d');
@@ -599,6 +611,22 @@ function render() {
     }
   }
 
+  // Soft Contact Shadows on Ground
+  const ambRgb = hexToRgb(ambientLightColor || '#1E293B');
+  meshes.forEach(m => {
+    const sc = proj(0, gy + 0.005, 0);
+    const spread = 0.85 + shadowSoftness * 0.45;
+    const se = proj(spread, gy + 0.005, 0);
+    if (sc && se) {
+      const rad = Math.max(12, Math.abs(sc[0] - se[0]));
+      const alpha = Math.max(0.06, (0.40 - shadowSoftness * 0.22));
+      ctx.beginPath();
+      ctx.ellipse(sc[0], sc[1], rad, rad * (0.38 + shadowSoftness * 0.12), 0, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0,0,0,${'$'}{alpha.toFixed(2)})`;
+      ctx.fill();
+    }
+  });
+
   const tris = [];
   let vCount = 0, tCount = 0;
 
@@ -637,11 +665,12 @@ function render() {
         }
       }
 
-      const light = Math.max(0.22, Math.abs(nx*0.55 + ny*0.72 + nz*0.42));
-      const spec = Math.pow(Math.max(0, ny*0.7 + nz*0.6), 16) * 55;
-      const r = Math.min(255, Math.round(rgb[0]*light + spec));
-      const g = Math.min(255, Math.round(rgb[1]*light + spec));
-      const b = Math.min(255, Math.round(rgb[2]*light + spec));
+      const light = Math.max(0.18, Math.abs(nx*0.55 + ny*0.72 + nz*0.42)) * lightIntensity;
+      const spec = Math.pow(Math.max(0, ny*0.7 + nz*0.6), 16) * 55 * lightIntensity;
+      const ambW = 0.30;
+      const r = Math.min(255, Math.max(0, Math.round(rgb[0]*light + ambRgb[0]*ambW + spec)));
+      const g = Math.min(255, Math.max(0, Math.round(rgb[1]*light + ambRgb[1]*ambW + spec)));
+      const b = Math.min(255, Math.max(0, Math.round(rgb[2]*light + ambRgb[2]*ambW + spec)));
 
       tris.push({
         s0, s1, s2,
